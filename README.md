@@ -193,7 +193,7 @@ Optionally include a `webhookUrl` in your `POST /api/v1/transcode` body. When th
 
 1. **Clone Repo & Install Dependencies**  
    ```bash
-   git clone https://github.com/yourusername/ffmpeg-api.git
+   git clone https://github.com/rendiffdev/ffmpeg-api.git
    cd ffmpeg-api
    pip install -r requirements.txt
    ```
@@ -222,7 +222,7 @@ Optionally include a `webhookUrl` in your `POST /api/v1/transcode` body. When th
 
 ## Contributing
 
-Contributions are welcome! Feel free to open a [pull request](https://github.com/yourusername/ffmpeg-api/pulls) or [issue](https://github.com/yourusername/ffmpeg-api/issues) for improvements, bug fixes, or feature requests.
+Contributions are welcome! Feel free to open a [pull request](https://github.com/rendiffdev/ffmpeg-api/pulls) or [issue](https://github.com/rendiffdev/ffmpeg-api/issues) for improvements, bug fixes, or feature requests.
 
 **Guidelines**:
 - Fork the repository and create a feature branch.
