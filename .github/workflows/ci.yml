@@ -1,5 +1,4 @@
-# .github/workflows/ci.yml
-name: CI / Docker Build
+name: Build & Publish Docker Image
 
 on:
   push:
@@ -7,46 +6,38 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
-    env:
-      MODE: local
-      FFMPEG_PATH: /usr/bin/ffmpeg
-      FFPROBE_PATH: /usr/bin/ffprobe
-      VMAF_PATH: /usr/bin/true   # no-op in CI
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+      - name: Set up QEMU (for multi‑arch)
+        uses: docker/setup-qemu-action@v2
 
-      - name: Install system FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt
-
-      - name: Set PYTHONPATH for imports
-        run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
-
-      - name: Build multi-arch Docker image (no load)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v4
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: false
-          load: false
-          tags: ffmpeg-api-service:latest
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ffmpeg-api-service:latest
+            ghcr.io/${{ github.repository_owner }}/ffmpeg-api-service:${{ github.sha }}
