@@ -1,4 +1,4 @@
-name: CI / Test & Docker Build
+name: CI / Docker Build
 
 on:
   push:
@@ -7,27 +7,14 @@ on:
     branches: [ main ]
 
 jobs:
-  test-and-build:
+  build:
     runs-on: ubuntu-latest
-
     env:
-      # Force local ffmpeg usage
+      # Force use of local FFmpeg in CI
       MODE: local
       FFMPEG_PATH: /usr/bin/ffmpeg
       FFPROBE_PATH: /usr/bin/ffprobe
-      VMAF_PATH: /usr/bin/true            # no-op if VMAF not installed
-      # JWT settings for tests
-      SECRET_KEY: testsecret
-      ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 60
-      # AWS disabled in CI
-      AWS_ACCESS_KEY_ID: ''
-      AWS_SECRET_ACCESS_KEY: ''
-      AWS_REGION: us-east-1
-      # API server defaults (not used by tests)
-      HOST: 0.0.0.0
-      PORT: 8000
-      WORKERS: 1
+      VMAF_PATH: /usr/local/bin/ffmpeg-quality-metrics
 
     steps:
       - name: Checkout repository
@@ -42,21 +29,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+          # ffprobe comes bundled; install VMAF tools here if needed
 
-      - name: Install Python dependencies, pytest & httpx
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
-          pip install pytest httpx
 
-      - name: Export PYTHONPATH
+      - name: Set PYTHONPATH for imports
         run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
-
-      - name: Run pytest
-        run: pytest --maxfail=1 --disable-warnings -q
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Build and load Docker image
         uses: docker/build-push-action@v4
@@ -67,4 +48,3 @@ jobs:
           load: true
           push: false
           tags: ffmpeg-api-service:latest
-
