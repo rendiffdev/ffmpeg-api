@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI / Test & Docker Build
 
 on:
@@ -11,38 +12,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Set up Python 3.10
-      - name: Set up Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # 3. Install Python dependencies, pytest & httpx
-      - name: Install dependencies
+      - name: Install dependencies, pytest & httpx
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
           pip install pytest httpx
 
-      # 4. Run test suite
+      - name: Export PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+
       - name: Run pytest
         run: pytest --maxfail=1 --disable-warnings -q
 
-      # 5. Set up Docker Buildx for multi-arch
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 6. Build and load Docker image
       - name: Build and load Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-          load: true      # load into the runner’s Docker daemon
-          push: false     # do not push to any registry
+          load: true
+          push: false
           tags: ffmpeg-api-service:latest
