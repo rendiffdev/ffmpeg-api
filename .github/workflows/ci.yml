@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI / Docker Build
 
 on:
@@ -10,11 +11,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # Force use of local FFmpeg in CI
       MODE: local
       FFMPEG_PATH: /usr/bin/ffmpeg
       FFPROBE_PATH: /usr/bin/ffprobe
-      VMAF_PATH: /usr/local/bin/ffmpeg-quality-metrics
+      VMAF_PATH: /usr/bin/true   # no-op in CI
 
     steps:
       - name: Checkout repository
@@ -29,7 +29,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          # ffprobe comes bundled; install VMAF tools here if needed
 
       - name: Install Python dependencies
         run: |
@@ -39,12 +38,15 @@ jobs:
       - name: Set PYTHONPATH for imports
         run: echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
 
-      - name: Build and load Docker image
+      - name: Build multi-arch Docker image (no load)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-          load: true
           push: false
+          load: false
           tags: ffmpeg-api-service:latest
