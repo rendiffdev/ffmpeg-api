@@ -21,18 +21,18 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 3. Install Python dependencies and pytest
+      # 3. Install Python dependencies, pytest & httpx
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
-          pip install pytest
+          pip install pytest httpx
 
       # 4. Run test suite
       - name: Run pytest
         run: pytest --maxfail=1 --disable-warnings -q
 
-      # 5. Set up Docker Buildx for multi‑arch
+      # 5. Set up Docker Buildx for multi-arch
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
