@@ -1,0 +1,209 @@
+# version: '3.8'  # Version is obsolete in Docker Compose v2+
+
+services:
+  # Setup Wizard (run once for initial configuration)
+  setup:
+    build:
+      context: .
+      dockerfile: docker/setup/Dockerfile
+    container_name: rendiff_setup
+    volumes:
+      - ./config:/etc/rendiff
+      - ./setup:/setup
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    profiles:
+      - setup
+    stdin_open: true
+    tty: true
+
+  # API Gateway
+  krakend:
+    image: devopsfaith/krakend:2.6
+    container_name: rendiff_gateway
+    volumes:
+      - ./config/krakend.json:/etc/krakend/krakend.json:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    networks:
+      - rendiff
+    restart: unless-stopped
+
+  # API Service
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    environment:
+      - DATABASE_URL=sqlite:///data/rendiff.db
+      - VALKEY_URL=redis://valkey:6379/0
+      - STORAGE_CONFIG=/app/config/storage.yml
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/data
+      - storage:/storage
+    depends_on:
+      valkey:
+        condition: service_healthy
+    networks:
+      - rendiff
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Worker Service - CPU
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    environment:
+      - DATABASE_URL=sqlite:///data/rendiff.db
+      - VALKEY_URL=redis://valkey:6379/0
+      - STORAGE_CONFIG=/app/config/storage.yml
+      - WORKER_TYPE=cpu
+      - WORKER_CONCURRENCY=4
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/data
+      - storage:/storage
+    depends_on:
+      valkey:
+        condition: service_healthy
+    networks:
+      - rendiff
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  # Worker Service - GPU (optional)
+  worker-gpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    environment:
+      - DATABASE_URL=sqlite:///data/rendiff.db
+      - VALKEY_URL=redis://valkey:6379/0
+      - STORAGE_CONFIG=/app/config/storage.yml
+      - WORKER_TYPE=gpu
+      - WORKER_CONCURRENCY=2
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/data
+      - storage:/storage
+    depends_on:
+      valkey:
+        condition: service_healthy
+    networks:
+      - rendiff
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu
+
+  # Queue Service (Valkey/Redis)
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    command: valkey-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - valkey-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - rendiff
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - rendiff
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:10.2.0
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - rendiff
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+
+networks:
+  rendiff:
+    driver: bridge
+
+volumes:
+  storage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${STORAGE_PATH:-./storage}
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  valkey-data:
+  prometheus-data:
+  grafana-data:

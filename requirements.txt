@@ -1,10 +1,58 @@
-fastapi==0.115.12
-uvicorn[standard]==0.23.2
-pydantic==2.8.1
-pydantic-settings==2.9.1
+# Core dependencies
+fastapi==0.109.0
+uvicorn[standard]==0.25.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
 python-multipart==0.0.6
-requests==2.31.0
-boto3==1.26.145
-python-jose==3.3.0
-httpx==0.24.1
-pytest==7.4.0
+
+# Database
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+alembic==1.13.1
+
+# Queue and Background Tasks
+celery==5.3.4
+redis==5.0.1
+flower==2.0.1
+
+# Storage backends
+boto3==1.34.0
+azure-storage-blob==12.19.0
+google-cloud-storage==2.10.0
+minio==7.2.0
+aiofiles==23.2.1
+
+# Media processing
+ffmpeg-python==0.2.0
+pillow==10.2.0
+
+# API and networking
+httpx==0.26.0
+aiohttp==3.9.1
+websockets==12.0
+
+# Monitoring and logging
+prometheus-client==0.19.0
+structlog==24.1.0
+python-json-logger==2.0.7
+
+# Utilities
+pyyaml==6.0.1
+python-dotenv==1.0.0
+click==8.1.7
+rich==13.7.0
+humanize==4.9.0
+
+# Security
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+cryptography==41.0.7
+
+# Development dependencies (optional)
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+black==23.12.1
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0

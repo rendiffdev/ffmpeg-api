@@ -1,36 +1,69 @@
-#!/usr/bin/env python3
-from pathlib import Path
+"""
+Setup script for Rendiff FFmpeg API
+"""
+from setuptools import setup, find_packages
 
-def prompt(text, default=None):
-    val = input(f"{text}{f' [{default}]' if default else ''}: ")
-    return val.strip() or default
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
-cfg = {}
-cfg['FFMPEG_PATH'] = prompt('Path to ffmpeg', '/usr/bin/ffmpeg')
-cfg['FFPROBE_PATH'] = prompt('Path to ffprobe', '/usr/bin/ffprobe')
-cfg['VMAF_PATH'] = prompt('Path to ffmpeg-quality-metrics', '/usr/local/bin/ffmpeg-quality-metrics')
-cfg['MODE'] = prompt('Mode (local/ssh)', 'local')
-if cfg['MODE']=='ssh':
-    cfg['SSH_HOST'] = prompt('SSH host')
-    cfg['SSH_USER'] = prompt('SSH user')
-    cfg['SSH_KEY_PATH'] = prompt('SSH key path')
-use_s3 = prompt('Use AWS S3? (yes/no)', 'no')
-if use_s3.lower()=='yes':
-    cfg['AWS_ACCESS_KEY_ID'] = prompt('AWS Access Key ID')
-    cfg['AWS_SECRET_ACCESS_KEY'] = prompt('AWS Secret Access Key')
-    cfg['AWS_REGION'] = prompt('AWS Region', 'us-east-1')
-else:
-    cfg['AWS_ACCESS_KEY_ID']=''
-    cfg['AWS_SECRET_ACCESS_KEY']=''
-    cfg['AWS_REGION']='us-east-1'
-cfg['SECRET_KEY'] = prompt('JWT Secret Key')
-cfg['ALGORITHM'] = 'HS256'
-cfg['ACCESS_TOKEN_EXPIRE_MINUTES'] = prompt('Token expiry minutes', '60')
-cfg['HOST'] = prompt('API Host', '0.0.0.0')
-cfg['PORT'] = prompt('API Port', '8000')
-cfg['WORKERS'] = prompt('Workers', '4')
-path=Path('.env')
-if path.exists() and prompt('.env exists overwrite? (yes/no)', 'no')!='yes': exit(0)
-with open(path,'w') as f:
-    for k,v in cfg.items(): f.write(f"{k}={v}\n")
-print('Generated .env')
+with open("requirements.txt", "r", encoding="utf-8") as fh:
+    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+
+setup(
+    name="rendiff",
+    version="1.0.0",
+    author="Rendiff",
+    author_email="dev@rendiff.dev",
+    description="Self-hosted FFmpeg API with multi-storage support",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/rendiffdev/ffmpeg-api",
+    project_urls={
+        "Homepage": "https://rendiff.dev",
+        "Bug Tracker": "https://github.com/rendiffdev/ffmpeg-api/issues",
+        "Documentation": "https://github.com/rendiffdev/ffmpeg-api/blob/main/docs/",
+        "Repository": "https://github.com/rendiffdev/ffmpeg-api",
+    },
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Topic :: Multimedia :: Video :: Conversion",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.12",
+        "Operating System :: OS Independent",
+    ],
+    packages=find_packages(),
+    python_requires=">=3.12",
+    install_requires=requirements,
+    extras_require={
+        "dev": [
+            "pytest>=7.4.4",
+            "pytest-asyncio>=0.23.3",
+            "pytest-cov>=4.1.0",
+            "black>=23.12.1",
+            "flake8>=7.0.0",
+            "mypy>=1.8.0",
+            "pre-commit>=3.6.0",
+        ],
+        "gpu": [
+            "nvidia-ml-py>=12.535.108",
+        ],
+    },
+    entry_points={
+        "console_scripts": [
+            "rendiff-api=api.main:main",
+            "rendiff-worker=worker.main:main",
+            "rendiff-cli=cli.main:main",
+        ],
+    },
+    include_package_data=True,
+    package_data={
+        "rendiff": [
+            "config/*.yml",
+            "config/*.json",
+            "scripts/*.sh",
+            "docker/**/Dockerfile",
+        ],
+    },
+)

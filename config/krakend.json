@@ -1,0 +1,299 @@
+{
+  "$schema": "https://www.krakend.io/schema/v2.6/krakend.json",
+  "version": 3,
+  "name": "Rendiff API Gateway",
+  "port": 8080,
+  "timeout": "3000s",
+  "cache_ttl": "300s",
+  "output_encoding": "json",
+  "extra_config": {
+    "telemetry/logging": {
+      "level": "INFO",
+      "prefix": "[KRAKEND]",
+      "syslog": false,
+      "stdout": true
+    },
+    "telemetry/metrics": {
+      "collection_time": "60s",
+      "proxy_disabled": false,
+      "router_disabled": false,
+      "backend_disabled": false,
+      "endpoint_disabled": false,
+      "listen_address": ":8090"
+    },
+    "security/cors": {
+      "allow_origins": ["*"],
+      "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "allow_headers": ["Origin", "Authorization", "Content-Type", "X-API-Key"],
+      "expose_headers": ["Content-Length", "Content-Type"],
+      "max_age": "12h"
+    },
+    "router": {
+      "return_error_msg": true
+    }
+  },
+  "endpoints": [
+    {
+      "endpoint": "/api/v1/convert",
+      "method": "POST",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/convert",
+          "method": "POST",
+          "host": ["http://api:8000"],
+          "encoding": "json",
+          "extra_config": {
+            "backend/http": {
+              "return_error_details": "backend"
+            }
+          }
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 100,
+          "client_max_rate": 10,
+          "strategy": "ip"
+        },
+        "auth/validator": {
+          "alg": "HS256",
+          "disable_jwk_security": true,
+          "operation_debug": true,
+          "propagate_claims": [
+            ["api_key", "X-API-Key"]
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/analyze",
+      "method": "POST",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/analyze",
+          "method": "POST",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 50,
+          "client_max_rate": 5
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/stream",
+      "method": "POST",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/stream",
+          "method": "POST",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 2
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/estimate",
+      "method": "POST",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/estimate",
+          "method": "POST",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 200,
+          "client_max_rate": 20
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/jobs",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/jobs",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "input_query_strings": ["status", "page", "per_page", "sort"],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 200,
+          "client_max_rate": 50
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/jobs/{id}",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/jobs/{id}",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 500,
+          "client_max_rate": 100
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/jobs/{id}",
+      "method": "DELETE",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/jobs/{id}",
+          "method": "DELETE",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 50,
+          "client_max_rate": 10
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/jobs/{id}/events",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/jobs/{id}/events",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/jobs/{id}/logs",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/jobs/{id}/logs",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/workers",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/workers",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/storage",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/storage",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/capabilities",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/capabilities",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 1000
+        }
+      }
+    },
+    {
+      "endpoint": "/api/v1/presets",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/presets",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/presets",
+      "method": "POST",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/presets",
+          "method": "POST",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/v1/health",
+      "method": "GET",
+      "output_encoding": "json",
+      "backend": [
+        {
+          "url_pattern": "/api/v1/health",
+          "method": "GET",
+          "host": ["http://api:8000"],
+          "encoding": "json"
+        }
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 1000
+        }
+      }
+    }
+  ]
+}

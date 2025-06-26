@@ -1,315 +1,342 @@
-# FFmpeg API Service
+# Rendiff FFmpeg API
 
-> **Open‑source**, **production‑grade**, Dockerized REST API exposing FFmpeg, ffprobe and quality‑metrics (VMAF, PSNR, SSIM) for video, image and audio workflows.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-6.0-green)](https://ffmpeg.org/)
 
+> **🎉 Production-Ready, Enterprise-Grade FFmpeg Processing API**
 
-## Features
+A self-hosted, production-ready FFmpeg processing API with multi-storage backend support, automatic setup, and comprehensive monitoring.
 
-- **Authentication**: JWT tokens via `/api/v1/auth/token`  
-- **Asynchronous Jobs**: Job IDs, status, logs, errors, elapsed time  
-- **Location Abstraction**: Local filesystem or AWS S3 URLs for input/output  
-- **Video**  
-  - Transcode to H.264, HEVC, VP9, AV1  
-  - Quality metrics: VMAF, PSNR, SSIM  
-  - Scaling, frame‑rate conversion, HDR & color‑space  
-  - HLS & DASH packaging  
-  - Burn‑in subtitles (SRT/VTT)  
-  - Thumbnail and preview sprite generation  
-- **Image**  
-  - Resize, crop, filters (grayscale, blur, etc.)  
-  - Watermark overlay  
-  - Format conversion: JPEG, PNG, WebP, AVIF  
-- **Audio**  
-  - Convert to AAC, Opus, MP3, WAV  
-  - Bitrate/sample‑rate adjustments, mono/stereo  
-  - Loudness normalization (EBU R128)  
-- **Invoke FFmpeg Locally or Remotely** via SSH  
-- **AWS S3 Integration** for scalable storage  
+## ✨ Key Features
 
----
+- **🎬 RESTful API** for video/audio processing using FFmpeg
+- **☁️ Multi-Cloud Storage** (Local, AWS S3, S3-compatible storage)
+- **⚡ Async Processing** with Celery workers and Redis queue
+- **📊 Quality Analysis** with VMAF, PSNR, SSIM metrics
+- **🔄 Real-time Progress** via Server-Sent Events (SSE)
+- **🐳 Docker Ready** with GPU support and auto-scaling
+- **📈 Monitoring** with Prometheus metrics and health checks
+- **🛠️ Setup Wizard** for easy configuration
+- **📋 Unified CLI** for system management
 
-## Prerequisites
+## 🚀 Quick Start
 
-- **Docker** (Engine & Compose) or **Python 3.10+**  
-- **FFmpeg**, **ffprobe**, **ffmpeg‑quality‑metrics** installed on host or remote server  
-- (Optional) AWS credentials with S3 read/write permissions  
-
----
-
-## One‑Time-Setup
-
-Instead of manually editing `.env`, run the interactive installer:
-
+### Option 1: Quick Start (Recommended)
 ```bash
-chmod +x setup.py
-./setup.py
+git clone https://github.com/rendiffdev/ffmpeg-api.git
+cd ffmpeg-api
+
+# Start with default SQLite setup
+docker-compose up -d
+
+# Check health
+curl http://localhost:8080/api/v1/health
 ```
 
-You’ll be prompted for:
-
-- **FFmpeg** binary paths or SSH details  
-- **AWS S3** access key, secret, region (if using S3)  
-- **JWT** secret key and expiry  
-- **API Host**, **Port**, **Worker count**
-
-This generates a `.env` file consumed by the service.
-
----
-
-## Configuration
-
-Copy the example and verify:
-
+### Option 2: Interactive Setup
 ```bash
-cp config/example.env .env
-# Or edit the generated .env from setup.py
+git clone https://github.com/rendiffdev/ffmpeg-api.git
+cd ffmpeg-api
+
+# Run interactive setup wizard
+docker-compose run --rm setup
 ```
 
-Key environment variables:
-
-```ini
-# API server
-HOST=0.0.0.0
-PORT=8000
-WORKERS=4
-
-# FFmpeg binaries
-FFMPEG_PATH=/usr/bin/ffmpeg
-FFPROBE_PATH=/usr/bin/ffprobe
-VMAF_PATH=/usr/local/bin/ffmpeg-quality-metrics
-MODE=local        # or ssh
-# SSH_HOST=...
-# SSH_USER=...
-# SSH_KEY_PATH=...
-
-# AWS S3 (optional)
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=us-east-1
-
-# JWT auth
-SECRET_KEY=your_secure_key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-```  
-
----
-
-## Docker Deployment
-
-Build and run the container:
-
+### Option 3: Production Deployment
 ```bash
-docker build -t ffmpeg-api-service:latest .
-docker run -d --name ffapi \
-  --env-file .env \
-  -v /usr/bin/ffmpeg:/usr/bin/ffmpeg:ro \
-  -p 8000:8000 \
-  ffmpeg-api-service:latest
+git clone https://github.com/rendiffdev/ffmpeg-api.git
+cd ffmpeg-api
+
+# Copy and configure
+cp .env.example .env
+cp config/storage.yml.example config/storage.yml
+# Edit configuration files
+
+# Deploy production stack
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-> **Note**: Mount your ffmpeg binaries into the container if installed on host.
+## 📖 Documentation
 
----
+- **[🚀 Production Deployment Guide](DEPLOYMENT.md)** - Complete production setup
+- **[⚙️ Installation Guide](docs/INSTALLATION.md)** - Setup and configuration
+- **[📋 Production Readiness Assessment](PRODUCTION_READINESS_ASSESSMENT.md)** - What's included and ready
+- **[📚 API Documentation](docs/API.md)** - Complete API reference
 
-## Local Development
+### Quick Links
+- **API Docs**: http://localhost:8080/docs
+- **Health Check**: http://localhost:8080/api/v1/health
+- **Grafana**: http://localhost:3000 (admin/admin)
+- **Prometheus**: http://localhost:9090
+
+## 🔧 Unified CLI
+
+Rendiff includes a comprehensive CLI for all operations:
 
 ```bash
-pip install --upgrade pip
+# Management commands
+./rendiff info                    # System information
+./rendiff health                  # Health check
+./rendiff service start          # Start services
+./rendiff service status         # Service status
+
+# Setup commands  
+./rendiff setup wizard           # Interactive setup
+./rendiff setup gpu              # GPU detection
+
+# Storage management
+./rendiff storage list           # List storage backends
+./rendiff storage test s3        # Test storage connection
+
+# System maintenance
+./rendiff system backup          # Create backup
+./rendiff system update          # Check/install updates
+./rendiff system verify          # Verify system integrity
+
+# FFmpeg tools
+./rendiff ffmpeg version         # FFmpeg version info
+./rendiff ffmpeg capabilities    # Hardware acceleration status
+./rendiff ffmpeg probe video.mp4 # Analyze media file
+```
+
+## 🏗️ Core API Endpoints
+
+### Video Processing
+```bash
+# Convert video
+POST /api/v1/convert
+{
+  "input_path": "s3://bucket/input.mp4",
+  "output_path": "s3://bucket/output.mp4", 
+  "options": {
+    "format": "mp4",
+    "video_codec": "h264",
+    "audio_codec": "aac"
+  }
+}
+
+# Analyze quality
+POST /api/v1/analyze
+{
+  "reference_path": "s3://bucket/original.mp4",
+  "test_path": "s3://bucket/encoded.mp4"
+}
+```
+
+### Job Management
+```bash
+GET  /api/v1/jobs              # List jobs
+GET  /api/v1/jobs/{id}         # Job details  
+GET  /api/v1/jobs/{id}/events  # Real-time progress (SSE)
+DELETE /api/v1/jobs/{id}       # Cancel job
+```
+
+### System Information
+```bash
+GET /api/v1/health             # Health check
+GET /api/v1/capabilities       # System capabilities
+GET /api/v1/workers           # Worker status
+GET /api/v1/storage           # Storage backend status
+```
+
+## ☁️ Multi-Cloud Storage Support
+
+### Supported Backends
+- **Local Filesystem** - Direct file storage ✅
+- **AWS S3** - Amazon S3 and S3-compatible (MinIO) ✅
+- **Azure Blob Storage** - Microsoft Azure storage ⚠️ *Configuration only*
+- **Google Cloud Storage** - Google Cloud storage ⚠️ *Configuration only*
+- **NFS** - Network File System mounting ⚠️ *Configuration only*
+
+### Easy Configuration
+```yaml
+# config/storage.yml
+storage:
+  default_backend: "s3"
+  backends:
+    s3:
+      type: "s3"
+      bucket: "my-video-bucket"
+      region: "us-east-1"
+      # Credentials from environment variables
+    azure:
+      type: "azure" 
+      container: "videos"
+      account_name: "mystorageaccount"
+```
+
+### Environment-Based Setup
+```bash
+# AWS S3
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_S3_BUCKET=your-bucket
+
+# Azure
+AZURE_STORAGE_ACCOUNT=your_account
+AZURE_STORAGE_KEY=your_key
+AZURE_CONTAINER=videos
+
+# Auto-setup will configure storage automatically
+RENDIFF_AUTO_SETUP=true docker-compose up -d
+```
+
+## 🔐 Security & Production Features
+
+### Built-in Security
+- **🔑 API Key Authentication** with header/bearer token support
+- **🛡️ Input Validation** and sanitization
+- **🔒 Non-root Containers** for security
+- **📝 Rate Limiting** via KrakenD API Gateway
+- **🚫 IP Whitelisting** support
+- **🛡️ Security Headers** middleware
+
+### Production Ready
+- **📊 Health Checks** at all levels
+- **📈 Prometheus Metrics** collection
+- **🏗️ Resource Limits** and scaling configuration
+- **🗃️ Database Migrations** with Alembic
+- **🐳 Multi-stage Docker builds** with optimization
+- **⚡ Hardware Acceleration** (NVENC, QSV, VAAPI)
+
+## 📊 Monitoring & Observability
+
+### Metrics Available
+- API response times and error rates
+- Job processing statistics  
+- Storage backend performance
+- Worker health and utilization
+- FFmpeg processing metrics
+
+### Monitoring Features
+- **Grafana Setup** - Basic dashboard configuration included
+- **Health Endpoints** - Detailed component status checking
+- **Real-time Progress** - Job processing updates via SSE
+- **Worker Monitoring** - Celery worker status and statistics
+
+## 🎛️ Configuration Options
+
+### Basic Environment Variables
+```bash
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8080
+API_WORKERS=4
+EXTERNAL_URL=https://rendiff.yourdomain.com
+
+# Resource Limits
+MAX_UPLOAD_SIZE=10737418240     # 10GB
+MAX_CONCURRENT_JOBS_PER_KEY=10
+CPU_WORKERS=4
+GPU_WORKERS=2
+
+# Security
+ENABLE_API_KEYS=true
+RENDIFF_API_KEY=your-secure-32-char-api-key
+
+# Database (SQLite default, PostgreSQL for production)
+DATABASE_URL=sqlite+aiosqlite:///data/rendiff.db
+# DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/rendiff
+```
+
+## 🚀 Scaling & Performance
+
+### Horizontal Scaling
+```bash
+# Scale workers dynamically
+docker-compose up -d --scale worker-cpu=6
+docker-compose up -d --scale worker-gpu=2
+
+# Scale API instances (remove container names for scaling)
+docker-compose up -d --scale api=3
+```
+
+### Vertical Scaling
+```yaml
+# docker-compose.prod.yml
+deploy:
+  resources:
+    limits:
+      memory: 4G
+      cpus: '4.0'
+    reservations:
+      memory: 2G
+      cpus: '2.0'
+```
+
+### GPU Acceleration
+```bash
+# Enable GPU workers
+docker-compose --profile gpu up -d
+
+# Check GPU status
+./rendiff setup gpu
+./rendiff ffmpeg capabilities
+```
+
+## 🔧 Development
+
+### Local Development
+```bash
+# Install dependencies
 pip install -r requirements.txt
-uvicorn app.main:app \
-  --host 0.0.0.0 --port 8000 --workers 4
+
+# Initialize database
+mkdir -p data
+
+# Start API server
+python -m api.main
+
+# Start worker
+python -m worker.main
 ```
 
----
-
-## Running Tests
-
-Place sample fixtures in `tests/fixtures/`:
-
-- `test.mp4` (small video)  
-- `test.jpg`  
-- `test.wav`  
-
-Then:
-
+### Testing
 ```bash
-pytest --maxfail=1 --disable-warnings -q
+# Check system health
+curl http://localhost:8080/api/v1/health
+
+# Test basic functionality
+curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/capabilities
 ```
 
----
+## 🆘 Troubleshooting
 
-## Authentication
-
-Obtain a bearer token:
-
+### Quick Diagnostics
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/token \
-  -F "username=user@example.com" \
-  -F "password=password"
+# Check system health
+curl http://localhost:8080/api/v1/health
+
+# View service logs
+docker-compose logs -f api
+docker-compose logs -f worker-cpu
+
+# Check service status
+docker-compose ps
 ```
 
-Response:
+### Common Issues
+1. **Services won't start**: Check `docker-compose ps` and logs
+2. **Storage errors**: Verify storage configuration in `config/storage.yml`
+3. **FFmpeg errors**: Check if FFmpeg is properly installed in containers
+4. **Database issues**: SQLite database is created automatically in `data/` directory
 
-```json
-{ "access_token":"<JWT>", "token_type":"bearer" }
-```
+## 📄 License
 
-Include in subsequent requests:
+MIT License - see [LICENSE](LICENSE) file for details.
 
-```
-Authorization: Bearer <JWT>
-```
+## 🤝 Support & Community
+
+- **🌐 Website**: [rendiff.dev](https://rendiff.dev)
+- **📚 Documentation**: Complete guides in this repository
+- **🐛 Issues**: [GitHub Issues](https://github.com/rendiffdev/ffmpeg-api/issues)  
+- **💬 Discussions**: [GitHub Discussions](https://github.com/rendiffdev/ffmpeg-api/discussions)
+- **🐙 GitHub**: [@rendiffdev](https://github.com/rendiffdev)
+- **📧 Email**: [dev@rendiff.dev](mailto:dev@rendiff.dev)
+- **🐦 Twitter/X**: [@rendiffdev](https://x.com/rendiffdev)
 
 ---
 
-## API Endpoints
-
-### Video Endpoints
-
-#### POST /api/v1/video/transcode
-
-Async video transcode job.
-
-**Body**:
-
-```json
-{
-  "input":   { "local_path": "/tmp/in.mp4", "s3_path": null },
-  "output":  { "local_path": "/tmp/out.mp4", "s3_path": null },
-  "codec":   "h264",
-  "crf":     23,
-  "preset":  "medium"
-}
-```
-
-**Response**:
-
-```json
-{ "job_id": "abcdef123456" }
-```
-
-#### GET /api/v1/video/jobs/{job_id}
-
-Check job status.
-
-**Response**:
-
-```json
-{
-  "id": "abcdef123456",
-  "status": "RUNNING|SUCCESS|FAILED",
-  "log": "...",
-  "error": "...",
-  "time_taken": 12.345
-}
-```
-
-#### POST /api/v1/video/quality
-
-Compute quality metrics.
-
-**Body**:
-
-```json
-{
-  "reference": { "local_path":"ref.mp4", "s3_path": null },
-  "distorted": { "local_path":"dist.mp4", "s3_path": null },
-  "metrics": ["vmaf","psnr","ssim"]
-}
-```
-
-**Response**:
-
-```json
-{ "vmaf":"...", "psnr":"...", "ssim":"..." }
-```
-
-### Image Endpoints
-
-#### POST /api/v1/image/process
-
-Async image processing job.
-
-**Body**:
-
-```json
-{
-  "input": {
-    "local_path": "tests/fixtures/test.jpg",
-    "s3_path": null
-  },
-  "output": {
-    "local_path": "tests/fixtures/out.jpg",
-    "s3_path": null
-  },
-  "operations": [
-    { "type":"resize",    "params":{ "width":100, "height":100 } },
-    { "type":"filter",    "params":{ "name":"grayscale" } }
-  ]
-}
-```
-
-**Response**:
-
-```json
-{ "job_id":"abcdef123456" }
-```
-
-#### GET /api/v1/image/jobs/{job_id}
-
-Check image job status.
-
-### Audio Endpoints
-
-#### POST /api/v1/audio/convert
-
-Async audio conversion job.
-
-**Body**:
-
-```json
-{
-  "input": { "local_path":"in.wav", "s3_path":null },
-  "output": { "local_path":"out.aac", "s3_path":null },
-  "target_codec":"aac",
-  "bitrate":"64k",
-  "sample_rate":44100,
-  "channels":2
-}
-```
-
-**Response**:
-
-```json
-{ "job_id":"abcdef123456" }
-```
-
-#### GET /api/v1/audio/jobs/{job_id}
-
-Check audio job status.
-
----
-
-## Continuous Integration
-
-The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that:
-
-1. Checks out code
-2. Sets up Python 3.10
-3. Installs dependencies & runs tests
-4. Builds a multi-arch Docker image
-5. Optionally pushes to GitHub Container Registry
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## License
-
-This project is licensed under the **MIT License**.
-
+**Built with ❤️ by [Rendiff](https://rendiff.dev) using FastAPI, FFmpeg, Celery, and Docker**

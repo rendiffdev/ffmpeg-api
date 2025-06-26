@@ -1,0 +1,12 @@
+{
+  "input": "/storage/input/sample.mp4",
+  "output": {
+    "path": "/storage/output/sample_720p.mp4",
+    "format": "mp4",
+    "video": {
+      "codec": "h264",
+      "resolution": "1280x720",
+      "preset": "medium"
+    }
+  }
+}

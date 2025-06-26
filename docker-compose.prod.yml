@@ -1,0 +1,331 @@
+# version: '3.8'  # Version is obsolete in Docker Compose v2+
+
+# Production-Ready Rendiff Deployment
+# This configuration includes health checks, resource limits, and production settings
+
+services:
+  # API Service
+  api:
+    build: 
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: rendiff-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      # Basic Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8080
+      - API_WORKERS=${API_WORKERS:-4}
+      - EXTERNAL_URL=${EXTERNAL_URL:-http://localhost:8080}
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      
+      # Queue
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      
+      # Security
+      - ENABLE_API_KEYS=${ENABLE_API_KEYS:-true}
+      - DEBUG=false
+      
+      # Storage
+      - STORAGE_CONFIG=/config/storage.yml
+      
+      # Resources
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-10737418240}
+      - MAX_CONCURRENT_JOBS_PER_KEY=${MAX_CONCURRENT_JOBS_PER_KEY:-10}
+      - MAX_JOB_DURATION=${MAX_JOB_DURATION:-3600}
+      
+      # Setup
+      - RENDIFF_AUTO_SETUP=${RENDIFF_AUTO_SETUP:-false}
+      
+    volumes:
+      - ./config:/config
+      - ./data:/data
+      - ./storage:/storage
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - rendiff-network
+
+  # CPU Workers
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        WORKER_TYPE: cpu
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      - WORKER_TYPE=cpu
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+      - ./storage:/storage
+      - ./tmp:/tmp/rendiff
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "worker.main", "inspect", "ping"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    deploy:
+      replicas: ${CPU_WORKERS:-2}
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    networks:
+      - rendiff-network
+
+  # GPU Workers (optional)
+  worker-gpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        WORKER_TYPE: gpu
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      - WORKER_TYPE=gpu
+      - WORKER_CONCURRENCY=${GPU_WORKER_CONCURRENCY:-2}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+      - ./storage:/storage
+      - ./tmp:/tmp/rendiff
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "worker.main", "inspect", "ping"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    deploy:
+      replicas: ${GPU_WORKERS:-0}
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    runtime: nvidia
+    profiles:
+      - gpu
+    networks:
+      - rendiff-network
+
+  # Redis for task queue
+  redis:
+    image: redis:7-alpine
+    container_name: rendiff-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    networks:
+      - rendiff-network
+
+  # PostgreSQL (for production - optional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: rendiff-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-rendiff}
+      - POSTGRES_USER=${POSTGRES_USER:-rendiff}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rendiff}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    profiles:
+      - postgres
+    networks:
+      - rendiff-network
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rendiff-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    profiles:
+      - monitoring
+    networks:
+      - rendiff-network
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rendiff-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    profiles:
+      - monitoring
+    networks:
+      - rendiff-network
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: rendiff-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    profiles:
+      - nginx
+    networks:
+      - rendiff-network
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  rendiff-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
