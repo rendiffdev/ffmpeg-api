@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y \
     python3.12-venv \
     curl \
     xz-utils \
+    netcat-openbsd \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install latest FFmpeg from BtbN/FFmpeg-Builds
@@ -40,6 +42,8 @@ FROM python:3.12-slim AS runtime-cpu
 RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
+    netcat-openbsd \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install latest FFmpeg from BtbN/FFmpeg-Builds

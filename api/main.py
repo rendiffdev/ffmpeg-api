@@ -124,6 +124,15 @@ app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
 app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 
+# Conditionally include GenAI routers
+try:
+    from api.genai.main import mount_genai_routers
+    mount_genai_routers(app)
+except ImportError:
+    logger.info("GenAI module not available, skipping GenAI features")
+except Exception as e:
+    logger.warning("Failed to load GenAI features", error=str(e))
+
 # Add Prometheus metrics endpoint
 if settings.ENABLE_METRICS:
     metrics_app = make_asgi_app()
@@ -133,7 +142,7 @@ if settings.ENABLE_METRICS:
 @app.get("/", tags=["root"])
 async def root() -> Dict[str, Any]:
     """Root endpoint with API information."""
-    return {
+    base_info = {
         "name": "Rendiff FFmpeg API",
         "version": settings.VERSION,
         "status": "operational",
@@ -143,6 +152,23 @@ async def root() -> Dict[str, Any]:
         "repository": "https://github.com/rendiffdev/ffmpeg-api",
         "contact": "dev@rendiff.dev",
     }
+    
+    # Add GenAI information if available
+    try:
+        from api.genai.main import get_genai_info
+        base_info["genai"] = get_genai_info()
+    except ImportError:
+        base_info["genai"] = {
+            "enabled": False,
+            "message": "GenAI module not installed. Install with: pip install -r requirements-genai.txt"
+        }
+    except Exception as e:
+        base_info["genai"] = {
+            "enabled": False,
+            "error": str(e)
+        }
+    
+    return base_info
 
 
 def main():

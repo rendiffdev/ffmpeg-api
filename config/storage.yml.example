@@ -19,30 +19,8 @@ storage:
     #   secret_key: "${AWS_SECRET_ACCESS_KEY}"
     #   path_style: false
     
-    # Example Azure configuration
-    # azure:
-    #   name: "azure"
-    #   type: "azure"
-    #   account_name: "mystorageaccount"
-    #   container: "rendiff"
-    #   account_key: "${AZURE_STORAGE_KEY}"
-    
-    # Example GCS configuration
-    # gcs:
-    #   name: "gcs"
-    #   type: "gcs"
-    #   project_id: "my-project-id"
-    #   bucket: "my-rendiff-bucket"
-    #   credentials_file: "/config/gcp-key.json"
-    
-    # Example NFS configuration
-    # nfs:
-    #   name: "nfs"
-    #   type: "network"
-    #   protocol: "nfs"
-    #   server: "192.168.1.100"
-    #   export: "/exports/rendiff"
-    #   mount_options: "rw,sync,hard,intr"
+    # Note: Only local and S3 backends are currently implemented
+    # Azure, GCS, and NFS configurations are planned for future releases
   
   policies:
     input_backends: ["local"]

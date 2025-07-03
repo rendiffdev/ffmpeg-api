@@ -32,27 +32,102 @@ services:
       - rendiff
     restart: unless-stopped
 
+  # Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: rendiff_postgres
+    environment:
+      - POSTGRES_DB=ffmpeg_api
+      - POSTGRES_USER=ffmpeg_user
+      - POSTGRES_PASSWORD=ffmpeg_secure_pass_2025
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - rendiff
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ffmpeg_user -d ffmpeg_api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres 
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  # Database Migration Service (runs once to initialize schema)
+  db-migrate:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    command: ["/app/scripts/docker-entrypoint.sh", "migrate"]
+    environment:
+      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=ffmpeg_user
+      - POSTGRES_DB=ffmpeg_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rendiff
+    restart: "no"
+    volumes:
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+
   # API Service
   api:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
     environment:
-      - DATABASE_URL=sqlite:///data/rendiff.db
-      - VALKEY_URL=redis://valkey:6379/0
+      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - LOG_LEVEL=info
       - PYTHONUNBUFFERED=1
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_WORKERS=4
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=ffmpeg_user
+      - POSTGRES_DB=ffmpeg_api
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./config:/app/config:ro
-      - ./data:/data
       - storage:/storage
     depends_on:
-      valkey:
+      postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - rendiff
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/scripts/health-check.sh", "api"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
     deploy:
       replicas: 2
       resources:
@@ -66,8 +141,8 @@ services:
       context: .
       dockerfile: docker/worker/Dockerfile
     environment:
-      - DATABASE_URL=sqlite:///data/rendiff.db
-      - VALKEY_URL=redis://valkey:6379/0
+      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - WORKER_TYPE=cpu
       - WORKER_CONCURRENCY=4
@@ -75,10 +150,11 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./config:/app/config:ro
-      - ./data:/data
       - storage:/storage
     depends_on:
-      valkey:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - rendiff
@@ -96,8 +172,8 @@ services:
       context: .
       dockerfile: docker/worker/Dockerfile
     environment:
-      - DATABASE_URL=sqlite:///data/rendiff.db
-      - VALKEY_URL=redis://valkey:6379/0
+      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - WORKER_TYPE=gpu
       - WORKER_CONCURRENCY=2
@@ -106,10 +182,11 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./config:/app/config:ro
-      - ./data:/data
       - storage:/storage
     depends_on:
-      valkey:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - rendiff
@@ -128,19 +205,29 @@ services:
     profiles:
       - gpu
 
-  # Queue Service (Valkey/Redis)
-  valkey:
-    image: valkey/valkey:7.2-alpine
-    command: valkey-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+  # Queue Service (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: rendiff_redis
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --timeout 300
+      --tcp-keepalive 300
+      --maxclients 1000
     volumes:
-      - valkey-data:/data
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     ports:
       - "6379:6379"
     networks:
       - rendiff
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -198,12 +285,11 @@ volumes:
       type: none
       o: bind
       device: ${STORAGE_PATH:-./storage}
-  data:
+  postgres-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data
-  valkey-data:
+  redis-data:
+    driver: local
   prometheus-data:
+    driver: local
   grafana-data:
+    driver: local

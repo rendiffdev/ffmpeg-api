@@ -1,0 +1,97 @@
+# Docker Compose Override for GenAI-enabled FFmpeg API
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.genai.yml up -d
+
+services:
+  # Override API service with GenAI support
+  api:
+    build:
+      dockerfile: docker/api/Dockerfile.genai
+    environment:
+      - GENAI_ENABLED=true
+      - GENAI_MODEL_PATH=/app/models/genai
+      - GENAI_GPU_ENABLED=true
+      - GENAI_GPU_DEVICE=cuda:0
+      - GENAI_PARALLEL_WORKERS=2
+      - GENAI_GPU_MEMORY_LIMIT=8192
+      - GENAI_INFERENCE_TIMEOUT=300
+      - GENAI_ENABLE_CACHE=true
+      - GENAI_CACHE_TTL=86400
+    volumes:
+      - ./config:/app/config:ro
+      - ./models/genai:/app/models/genai
+      - storage:/storage
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Add GenAI-enabled worker service
+  worker-genai:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile.genai
+    environment:
+      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - REDIS_URL=redis://redis:6379/0
+      - STORAGE_CONFIG=/app/config/storage.yml
+      - WORKER_TYPE=genai
+      - WORKER_CONCURRENCY=2
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - GENAI_ENABLED=true
+      - GENAI_MODEL_PATH=/app/models/genai
+      - GENAI_GPU_ENABLED=true
+      - GENAI_GPU_DEVICE=cuda:0
+      - GENAI_PARALLEL_WORKERS=2
+      - WORKER_TASK_TIME_LIMIT=43200
+    volumes:
+      - ./config:/app/config:ro
+      - ./models/genai:/app/models/genai
+      - storage:/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rendiff
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Model downloader service (runs once to download AI models)
+  model-downloader:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile.genai
+    container_name: ffmpeg_model_downloader
+    command: python -m api.genai.utils.download_models
+    environment:
+      - GENAI_MODEL_PATH=/app/models/genai
+      - GENAI_ESRGAN_MODEL=RealESRGAN_x4plus
+      - GENAI_VIDEOMAE_MODEL=MCG-NJU/videomae-base
+      - GENAI_VMAF_MODEL=vmaf_v0.6.1
+      - GENAI_DOVER_MODEL=dover_mobile
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./models/genai:/app/models/genai
+    networks:
+      - rendiff
+    profiles:
+      - setup

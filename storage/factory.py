@@ -20,10 +20,6 @@ def _lazy_import_backend(backend_type: str) -> Optional[Type[StorageBackend]]:
     """Lazy import storage backend to avoid dependency issues."""
     backend_imports = {
         "s3": ("storage.backends.s3", "S3StorageBackend", ["boto3"]),
-        "azure": ("storage.backends.azure", "AzureStorageBackend", ["azure.storage.blob"]),
-        "gcs": ("storage.backends.gcs", "GCSStorageBackend", ["google.cloud.storage"]),
-        "nfs": ("storage.backends.nfs", "NFSStorageBackend", []),
-        "network": ("storage.backends.nfs", "NFSStorageBackend", []),
     }
     
     if backend_type not in backend_imports:

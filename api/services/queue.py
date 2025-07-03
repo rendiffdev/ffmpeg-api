@@ -163,14 +163,13 @@ class QueueService:
     
     async def get_worker_logs(self, worker_id: str, job_id: str, lines: int = 100) -> List[str]:
         """Get logs from specific worker for a job."""
-        # In production, this would fetch from a log aggregation service
-        # For now, return placeholder
+        # Note: Log aggregation service integration not implemented
+        # Consider implementing with ELK stack, Grafana Loki, or similar
         return [
-            f"Worker {worker_id} processing job {job_id}",
-            "FFmpeg version 6.0",
-            "Input: detecting format...",
-            "Output: configuring encoder...",
-            "Processing: 45% complete",
+            "Log aggregation not configured",
+            "Use 'docker-compose logs worker' to view worker logs",
+            f"Job ID: {job_id}",
+            f"Worker ID: {worker_id}",
         ]
     
     async def health_check(self) -> Dict[str, Any]:

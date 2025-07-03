@@ -62,8 +62,8 @@ The setup wizard will guide you through:
 3. **Storage Configuration**
    - Configure storage backends:
      - Local filesystem
-     - Network storage (NFS, SMB)
-     - Cloud storage (S3, Azure, GCS, MinIO)
+     - S3-compatible storage (AWS S3, MinIO, etc.)
+     - Note: Additional backends (Azure, GCS, NFS) planned for future releases
    - Set input/output policies
    - Choose default backend
 
@@ -104,7 +104,7 @@ docker-compose logs -f
 curl http://localhost:8080/api/v1/health
 
 # Test with your API key (shown during setup)
-curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/capabilities
+curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/jobs
 ```
 
 ## Production Deployment
@@ -156,14 +156,12 @@ backends:
     secret_key: ${S3_SECRET_KEY}
 ```
 
-#### Azure Blob Storage
-```yaml
-backends:
-  azure:
-    type: azure
-    account_name: rendiffmedia
-    container: videos
-    account_key: ${AZURE_KEY}
+#### Note on Additional Backends
+```
+Additional storage backends (Azure, GCS, NFS) are planned
+for future releases. Currently supported:
+- Local filesystem
+- S3-compatible storage (AWS S3, MinIO, DigitalOcean Spaces)
 ```
 
 ## Manual Installation
@@ -608,8 +606,8 @@ API_HOST=0.0.0.0
 API_PORT=8000
 API_WORKERS=4
 
-# Database (SQLite - no external setup required)
-DATABASE_URL=sqlite:///data/rendiff.db
+# Database (PostgreSQL recommended for production)
+DATABASE_URL=postgresql://user:pass@localhost:5432/ffmpeg_api
 
 # Queue
 VALKEY_URL=redis://localhost:6379

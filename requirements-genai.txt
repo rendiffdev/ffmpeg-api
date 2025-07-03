@@ -1,0 +1,57 @@
+# GenAI Dependencies - Optional GPU-accelerated AI enhancements
+# Install only if GenAI features are enabled
+
+# Core AI/ML Libraries
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Computer Vision and Image Processing
+opencv-python>=4.8.0
+pillow>=9.5.0
+scikit-image>=0.20.0
+
+# Video Processing and Analysis
+moviepy>=1.0.3
+scenedetect>=0.6.2
+ffmpeg-python>=0.2.0
+
+# Real-ESRGAN for quality enhancement
+basicsr>=1.4.2
+facexlib>=0.3.0
+gfpgan>=1.3.8
+realesrgan>=0.3.0
+
+# Video understanding models
+transformers>=4.30.0
+timm>=0.9.0
+einops>=0.6.0
+
+# Quality assessment
+piq>=0.7.1
+lpips>=0.1.4
+
+# Performance optimization
+accelerate>=0.20.0
+numba>=0.57.0
+
+# Caching and utilities
+diskcache>=5.6.0
+tqdm>=4.65.0
+psutil>=5.9.0
+
+# Model management
+huggingface-hub>=0.15.0
+safetensors>=0.3.0
+
+# Additional dependencies for specific models
+# VideoMAE dependencies
+av>=10.0.0
+decord>=0.6.0
+
+# NVIDIA GPU support (optional)
+nvidia-ml-py>=11.495.46
+
+# Development and testing (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

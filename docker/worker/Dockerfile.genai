@@ -6,27 +6,44 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
+    libgl1-mesa-dev \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements (both base and GenAI)
+COPY requirements.txt requirements-genai.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-genai.txt
 
-# Runtime stage
-FROM python:3.12-slim
+# Runtime stage with NVIDIA CUDA support
+FROM nvidia/cuda:12.3.0-runtime-ubuntu22.04
 
-# Install runtime dependencies
+# Install Python and runtime dependencies
 RUN apt-get update && apt-get install -y \
+    python3.12 \
+    python3.12-venv \
     curl \
     xz-utils \
     netcat-openbsd \
     postgresql-client \
-    logrotate \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Create symlink for python
+RUN ln -s /usr/bin/python3.12 /usr/bin/python
 
 # Install latest FFmpeg from BtbN/FFmpeg-Builds
 COPY docker/install-ffmpeg.sh /tmp/install-ffmpeg.sh
@@ -42,17 +59,16 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN useradd -m -u 1000 -s /bin/bash rendiff
 
 # Create directories
-RUN mkdir -p /app /storage /config /data && \
-    chown -R rendiff:rendiff /app /storage /config /data
+RUN mkdir -p /app /storage /config /app/models/genai /tmp/rendiff && \
+    chown -R rendiff:rendiff /app /storage /config /tmp/rendiff
 
 # Set working directory
 WORKDIR /app
 
 # Copy application code
 COPY --chown=rendiff:rendiff api/ /app/api/
+COPY --chown=rendiff:rendiff worker/ /app/worker/
 COPY --chown=rendiff:rendiff storage/ /app/storage/
-COPY --chown=rendiff:rendiff alembic/ /app/alembic/
-COPY --chown=rendiff:rendiff alembic.ini /app/alembic.ini
 
 # Copy scripts for setup and maintenance
 COPY --chown=rendiff:rendiff scripts/ /app/scripts/
@@ -64,12 +80,14 @@ RUN mkdir -p /app/logs /app/temp /app/metrics && \
 # Switch to non-root user
 USER rendiff
 
-# Expose port
-EXPOSE 8000
+# Set environment for GPU support
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:8000/api/v1/health || exit 1
+    CMD celery -A worker.main inspect ping || exit 1
 
-# Run the application
-CMD ["/app/scripts/docker-entrypoint.sh", "api"]
+# Run the worker
+CMD ["/app/scripts/docker-entrypoint.sh", "worker"]
+EOF < /dev/null
