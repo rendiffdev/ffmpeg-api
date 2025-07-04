@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.13.5-slim AS builder
+FROM python:3.14-rc-alpine3.20 AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -17,7 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Runtime stage
-FROM python:3.13.5-slim
+FROM python:3.14-rc-alpine3.20
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
