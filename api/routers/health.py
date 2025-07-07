@@ -85,15 +85,16 @@ async def detailed_health_check(
     
     # Check FFmpeg
     try:
-        import subprocess
-        result = subprocess.run(
-            ["ffmpeg", "-version"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+        import asyncio
+        proc = await asyncio.create_subprocess_exec(
+            'ffmpeg', '-version',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        if result.returncode == 0:
-            version_line = result.stdout.split("\n")[0]
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        
+        if proc.returncode == 0:
+            version_line = stdout.decode().split("\n")[0]
             health_status["components"]["ffmpeg"] = {
                 "status": "healthy",
                 "version": version_line,
@@ -166,14 +167,15 @@ async def check_hardware_acceleration() -> list:
     
     # Check NVIDIA
     try:
-        import subprocess
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+        import asyncio
+        proc = await asyncio.create_subprocess_exec(
+            'nvidia-smi', '--query-gpu=name', '--format=csv,noheader',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        if result.returncode == 0:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        
+        if proc.returncode == 0:
             available.append("nvidia")
     except:
         pass

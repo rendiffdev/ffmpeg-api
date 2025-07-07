@@ -39,7 +39,7 @@ services:
     environment:
       - POSTGRES_DB=ffmpeg_api
       - POSTGRES_USER=ffmpeg_user
-      - POSTGRES_PASSWORD=ffmpeg_secure_pass_2025
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -73,7 +73,7 @@ services:
       dockerfile: docker/api/Dockerfile
     command: ["/app/scripts/docker-entrypoint.sh", "migrate"]
     environment:
-      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - DATABASE_URL=postgresql://ffmpeg_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ffmpeg_api
       - PYTHONUNBUFFERED=1
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
@@ -95,7 +95,7 @@ services:
       context: .
       dockerfile: docker/api/Dockerfile
     environment:
-      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - DATABASE_URL=postgresql://ffmpeg_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ffmpeg_api
       - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - LOG_LEVEL=info
@@ -141,7 +141,7 @@ services:
       context: .
       dockerfile: docker/worker/Dockerfile
     environment:
-      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - DATABASE_URL=postgresql://ffmpeg_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ffmpeg_api
       - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - WORKER_TYPE=cpu
@@ -172,7 +172,7 @@ services:
       context: .
       dockerfile: docker/worker/Dockerfile
     environment:
-      - DATABASE_URL=postgresql://ffmpeg_user:ffmpeg_secure_pass_2025@postgres:5432/ffmpeg_api
+      - DATABASE_URL=postgresql://ffmpeg_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ffmpeg_api
       - REDIS_URL=redis://redis:6379/0
       - STORAGE_CONFIG=/app/config/storage.yml
       - WORKER_TYPE=gpu
@@ -257,7 +257,7 @@ services:
     image: grafana/grafana:10.2.0
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-changeme}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana

@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     ENABLE_API_KEYS: bool = True
     ENABLE_IP_WHITELIST: bool = False
     IP_WHITELIST: str = "10.0.0.0/8,192.168.0.0/16"
+    ADMIN_API_KEYS: str = ""  # Comma-separated list of admin API keys
     
     # CORS
     CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])

@@ -24,9 +24,14 @@ storage_service = StorageService()
 
 async def require_admin(api_key: str = Depends(require_api_key)) -> str:
     """Require admin privileges."""
-    # In production, check if API key has admin role
-    # For now, just check a specific key
-    if api_key != "admin":  # Replace with proper admin check
+    # Check if API key is in the admin keys from environment
+    admin_keys = settings.ADMIN_API_KEYS.split(',') if hasattr(settings, 'ADMIN_API_KEYS') and settings.ADMIN_API_KEYS else []
+    
+    if not admin_keys:
+        logger.warning("No admin API keys configured - admin endpoints disabled")
+        raise HTTPException(status_code=503, detail="Admin functionality not configured")
+    
+    if api_key not in admin_keys:
         raise HTTPException(status_code=403, detail="Admin access required")
     return api_key
 
