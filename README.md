@@ -35,10 +35,12 @@ cd ffmpeg-api
 ./setup.sh --development    # Quick local development
 ./setup.sh --standard       # Production (PostgreSQL, Redis, monitoring)
 ./setup.sh --genai          # AI-enhanced (GPU support, AI models)
-./setup.sh --production     # Interactive production wizard
+./setup.sh --interactive    # Interactive setup wizard
 ```
 
-**That's it!** Your API will be running at `http://localhost:8080`
+**That's it!** Your API will be running at:
+- Development: `http://localhost:8000`
+- Production: `https://localhost` (HTTPS with self-signed certificate)
 
 ### 🏃‍♂️ Development (60 seconds)
 Perfect for testing and local development:
@@ -54,7 +56,7 @@ Enterprise-ready deployment:
 ```bash
 ./setup.sh --standard
 ```
-**Features:** PostgreSQL, Redis, monitoring, API keys, 2 CPU workers
+**Features:** PostgreSQL, Redis, monitoring, API keys, HTTPS by default, 2 CPU workers
 
 ### 🤖 AI-Enhanced Production
 GPU-accelerated AI features:
@@ -72,6 +74,7 @@ GPU-accelerated AI features:
 | **Database** | SQLite | PostgreSQL | PostgreSQL |
 | **Queue** | Redis | Redis | Redis |
 | **Authentication** | Disabled | API Keys | API Keys |
+| **HTTPS/SSL** | ❌ | ✅ (Self-signed + Let's Encrypt) | ✅ (Self-signed + Let's Encrypt) |
 | **Monitoring** | Basic | Full (Prometheus/Grafana) | Full |
 | **Workers** | 1 CPU | 2 CPU | 2 CPU + 1 GPU |
 | **AI Features** | ❌ | ❌ | ✅ |
@@ -121,19 +124,50 @@ GET  /docs                # Interactive API documentation
 # List current keys (masked)
 ./scripts/manage-api-keys.sh list
 
-# Test API access
-curl -H "X-API-Key: your-key" http://localhost:8080/api/v1/health
+# Test API access (development)
+curl -H "X-API-Key: your-key" http://localhost:8000/api/v1/health
+
+# Test API access (production - HTTPS)
+curl -k -H "X-API-Key: your-key" https://localhost/api/v1/health
 ```
 
 ### HTTPS/SSL Setup
+
+**🔒 HTTPS is enabled by default in ALL production deployments** with self-signed certificates.
+
+#### SSL Certificate Options:
+
+**Self-signed (Default)** - Works immediately:
+```bash
+./setup.sh --standard  # HTTPS ready with self-signed cert
+```
+
+**Let's Encrypt (Production)** - Free trusted certificates:
 ```bash
 # Configure your domain
 export DOMAIN_NAME=api.yourdomain.com
 export CERTBOT_EMAIL=admin@yourdomain.com
 
-# Setup with automatic SSL
-./setup.sh --production
-# Choose HTTPS option for Let's Encrypt certificates
+# Setup with Let's Encrypt
+./setup.sh --interactive  # Choose HTTPS option during setup
+```
+
+**Commercial SSL** - EV/OV certificates:
+```bash
+# Install commercial certificate
+./scripts/enhanced-ssl-manager.sh install-commercial cert.crt private.key
+```
+
+**Comprehensive SSL Management:**
+```bash
+# Show all SSL management options
+./scripts/enhanced-ssl-manager.sh --help
+
+# Monitor SSL certificates
+./scripts/enhanced-ssl-manager.sh monitor-start
+
+# Test SSL configuration
+./scripts/enhanced-ssl-manager.sh test-ssl yourdomain.com
 ```
 
 ### Monitoring & Health
@@ -208,8 +242,8 @@ docker-compose logs -f api
 | **[Setup Guide](docs/SETUP.md)** | Complete setup documentation for all deployment types |
 | **[API Reference](docs/API.md)** | Detailed API endpoint documentation |
 | **[Installation Guide](docs/INSTALLATION.md)** | Advanced installation and configuration |
-| **[Deployment Guide](DEPLOYMENT.md)** | Production deployment best practices |
-| **[Security Guide](SECURITY.md)** | Security configuration and best practices |
+| **[Production Setup](docs/SETUP.md#production-setup)** | Production deployment best practices |
+| **[HTTPS/SSL Setup](docs/SETUP.md#httpssl-configuration)** | Security configuration and best practices |
 
 ## 🎯 Use Cases
 
@@ -300,12 +334,12 @@ Supports deployment on:
 - **📚 Documentation**: Complete guides in `/docs`
 - **🐛 Issues**: [GitHub Issues](https://github.com/rendiffdev/ffmpeg-api/issues)
 - **💬 Discussions**: [GitHub Discussions](https://github.com/rendiffdev/ffmpeg-api/discussions)
-- **🔒 Security**: See [SECURITY.md](SECURITY.md)
+- **🔒 Security**: See [HTTPS/SSL Configuration](docs/SETUP.md#httpssl-configuration)
 - **📄 License**: [MIT License](LICENSE)
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please open an issue or submit a pull request on our [GitHub repository](https://github.com/rendiffdev/ffmpeg-api).
 
 ## 📄 License
 

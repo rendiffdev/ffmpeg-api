@@ -48,3 +48,21 @@ CLEANUP_SUMMARY.md
 # Storage and uploads
 /storage/
 /uploads/
+
+# SSL certificates (keep generation script)
+traefik/certs/*.crt
+traefik/certs/*.key
+traefik/certs/*.csr
+traefik/certs/*.pem
+traefik/letsencrypt/
+traefik/acme/
+
+# Test results and monitoring
+test-results/
+monitoring/ssl-scan-results/
+monitoring/*.log
+
+# Backups
+backups/
+*.backup
+backup-*/

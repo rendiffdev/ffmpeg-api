@@ -100,7 +100,7 @@ API_PORT=8000
 DEBUG=true
 LOG_LEVEL=debug
 STORAGE_PATH=./storage
-CORS_ORIGINS=*
+CORS_ORIGINS=http://localhost,https://localhost
 ENABLE_API_KEYS=false
 EOF
     
@@ -138,7 +138,7 @@ API_PORT=8000
 DEBUG=false
 LOG_LEVEL=info
 STORAGE_PATH=./storage
-CORS_ORIGINS=*
+CORS_ORIGINS=http://localhost,https://localhost
 ENABLE_API_KEYS=true
 GRAFANA_PASSWORD=${GRAFANA_PASSWORD}
 CPU_WORKERS=2
@@ -153,7 +153,7 @@ EOF
     print_success "Standard production environment configured"
     print_info "Starting production services..."
     
-    # Start production services
+    # Start production services with HTTPS by default
     docker-compose -f docker-compose.prod.yml up -d
     
     print_success "Standard production environment is running!"
@@ -210,10 +210,10 @@ setup_production() {
     print_info "Starting production setup..."
     
     echo "Choose production configuration:"
-    echo "1) Standard (PostgreSQL, Redis, Monitoring)"
-    echo "2) Standard + HTTPS/SSL"
-    echo "3) GenAI-enabled"
-    echo "4) GenAI + HTTPS/SSL"
+    echo "1) Standard (PostgreSQL, Redis, Monitoring, Self-signed HTTPS)"
+    echo "2) Standard + Let's Encrypt HTTPS"
+    echo "3) GenAI-enabled (Self-signed HTTPS)"
+    echo "4) GenAI + Let's Encrypt HTTPS"
     echo "5) Custom (interactive)"
     read -p "Enter choice (1-5): " choice
     
@@ -227,31 +227,49 @@ setup_production() {
     esac
 }
 
-# Standard with HTTPS
+# Standard with HTTPS (Let's Encrypt)
 setup_standard_https() {
+    print_info "Setting up standard production with Let's Encrypt HTTPS..."
+    
+    # Check if domain is provided
+    if [ "${DOMAIN_NAME:-localhost}" = "localhost" ]; then
+        print_error "Let's Encrypt requires a valid domain. Please set DOMAIN_NAME environment variable."
+        print_info "Example: export DOMAIN_NAME=api.yourdomain.com"
+        exit 1
+    fi
+    
     setup_standard
     
-    print_info "Configuring HTTPS/SSL..."
-    ./scripts/manage-ssl.sh setup
+    print_info "Configuring Let's Encrypt HTTPS..."
+    ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
-    print_info "Starting services with Traefik..."
-    docker-compose -f docker-compose.prod.yml --profile traefik up -d
+    print_info "Restarting services with Let's Encrypt..."
+    docker-compose -f docker-compose.prod.yml restart traefik
     
-    print_success "HTTPS environment is running!"
+    print_success "HTTPS environment with Let's Encrypt is running!"
 }
 
-# GenAI with HTTPS
+# GenAI with HTTPS (Let's Encrypt)
 setup_genai_https() {
+    print_info "Setting up GenAI with Let's Encrypt HTTPS..."
+    
+    # Check if domain is provided
+    if [ "${DOMAIN_NAME:-localhost}" = "localhost" ]; then
+        print_error "Let's Encrypt requires a valid domain. Please set DOMAIN_NAME environment variable."
+        print_info "Example: export DOMAIN_NAME=api.yourdomain.com"
+        exit 1
+    fi
+    
     setup_genai
     
-    print_info "Configuring HTTPS/SSL..."
-    ./scripts/manage-ssl.sh setup
+    print_info "Configuring Let's Encrypt HTTPS..."
+    ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
-    print_info "Updating services with Traefik..."
+    print_info "Restarting services with Let's Encrypt..."
     docker-compose -f docker-compose.yml -f docker-compose.genai.yml down
-    docker-compose -f docker-compose.prod.yml --profile traefik --profile genai up -d
+    docker-compose -f docker-compose.prod.yml --profile genai up -d
     
-    print_success "GenAI + HTTPS environment is running!"
+    print_success "GenAI + HTTPS environment with Let's Encrypt is running!"
 }
 
 # Show access information
@@ -260,9 +278,10 @@ show_access_info() {
     print_success "Deployment completed successfully!"
     echo ""
     print_info "Access Information:"
-    print_info "• API: ${CYAN}http://localhost:8080${NC}"
-    print_info "• Documentation: ${CYAN}http://localhost:8080/docs${NC}"
-    print_info "• Health Check: ${CYAN}http://localhost:8080/api/v1/health${NC}"
+    print_info "• API (HTTPS): ${CYAN}https://localhost${NC}"
+    print_info "• API (HTTP - redirects to HTTPS): ${CYAN}http://localhost${NC}"
+    print_info "• Documentation: ${CYAN}https://localhost/docs${NC}"
+    print_info "• Health Check: ${CYAN}https://localhost/api/v1/health${NC}"
     print_info "• Monitoring: ${CYAN}http://localhost:3000${NC} (if enabled)"
     echo ""
     print_info "Management Commands:"

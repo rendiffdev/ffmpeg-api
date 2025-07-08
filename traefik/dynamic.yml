@@ -1,11 +1,24 @@
 # Traefik Dynamic Configuration
 
-# TLS Options
+# TLS Configuration
 tls:
+  # Default self-signed certificate for HTTPS
+  certificates:
+    - certFile: /etc/traefik/certs/cert.crt
+      keyFile: /etc/traefik/certs/cert.key
+      stores:
+        - default
+  
+  # Default store
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/certs/cert.crt
+        keyFile: /etc/traefik/certs/cert.key
+  
+  # TLS Options
   options:
     default:
-      sslStrategies:
-        - "tls.SniStrict"
       minVersion: "VersionTLS12"
       maxVersion: "VersionTLS13"
       cipherSuites:
@@ -19,7 +32,7 @@ tls:
         - "CurveP521"
         - "CurveP384"
         - "CurveP256"
-      sniStrict: true
+      sniStrict: false  # Changed to false for self-signed cert compatibility
 
 # Middlewares
 http:
@@ -34,7 +47,10 @@ http:
           - DELETE
           - OPTIONS
         accessControlAllowOriginList:
-          - "*"
+          - "https://localhost"
+          - "http://localhost"
+          - "https://127.0.0.1"
+          - "http://127.0.0.1"
         accessControlMaxAge: 100
         hostsProxyHeaders:
           - "X-Forwarded-Host"
@@ -125,5 +141,4 @@ http:
       service: api@internal
       middlewares:
         - security-headers
-      tls:
-        certResolver: "${CERT_RESOLVER:-letsencrypt}"
+      tls: {}

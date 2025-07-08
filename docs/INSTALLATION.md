@@ -50,13 +50,13 @@ cd ffmpeg-api
 #### Option A: Interactive Setup Wizard (Recommended)
 ```bash
 # Run the comprehensive setup wizard
-./quick-start.sh
+./setup.sh --interactive
 ```
 
 #### Option B: Docker-Only Setup
 ```bash
 # Run the setup container directly
-docker-compose -f docker-compose.setup-only.yml run --rm setup
+docker-compose --profile setup run --rm setup
 ```
 
 #### Option C: Script-Only Setup
@@ -121,10 +121,10 @@ docker-compose logs -f
 
 ```bash
 # Check API health
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8000/api/v1/health
 
 # Test with your API key (shown during setup)
-curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/jobs
+curl -H "X-API-Key: your-api-key" http://localhost:8000/api/v1/jobs
 ```
 
 ## Production Deployment
@@ -139,7 +139,7 @@ curl -sSL https://raw.githubusercontent.com/rendiffdev/ffmpeg-api/main/scripts/i
 
 # Then run the setup wizard
 cd /opt/rendiff
-docker-compose run --rm setup
+docker-compose --profile setup run --rm setup
 ```
 
 ### Storage Backend Examples
@@ -381,7 +381,7 @@ python scripts/init-sqlite.py
 ### Getting Help
 
 - Check logs: `docker-compose logs -f`
-- API documentation: http://localhost:8080/docs
+- API documentation: http://localhost:8000/docs
 - Run diagnostics: `./scripts/updater.py verify`
 - GitHub Issues: https://github.com/rendiffdev/ffmpeg-api/issues
 
@@ -549,10 +549,10 @@ sudo make install
 mkdir -p data
 ```
 
-### 4. Set up Valkey/Redis
+### 4. Set up Redis
 
 ```bash
-# Install Redis (Valkey compatible)
+# Install Redis
 sudo apt install redis-server
 
 # Configure Redis
@@ -606,7 +606,7 @@ kubectl apply -f k8s/secrets.yaml
 
 # Deploy services
 kubectl apply -f k8s/postgres-deployment.yaml
-kubectl apply -f k8s/valkey-deployment.yaml
+kubectl apply -f k8s/redis-deployment.yaml
 kubectl apply -f k8s/api-deployment.yaml
 kubectl apply -f k8s/worker-deployment.yaml
 
@@ -630,7 +630,7 @@ API_WORKERS=4
 DATABASE_URL=postgresql://user:pass@localhost:5432/ffmpeg_api
 
 # Queue
-VALKEY_URL=redis://localhost:6379
+REDIS_URL=redis://localhost:6379
 
 # Storage
 STORAGE_CONFIG=/etc/rendiff/storage.yml
@@ -733,7 +733,7 @@ chmod -R 755 ./storage
 ### Getting Help
 
 - Check logs: `docker-compose logs -f`
-- API documentation: http://localhost:8080/docs
+- API documentation: http://localhost:8000/docs
 - GitHub Issues: https://github.com/rendiffdev/ffmpeg-api/issues
 - Website: https://rendiff.dev
 - Email: dev@rendiff.dev
@@ -741,7 +741,7 @@ chmod -R 755 ./storage
 
 ## Next Steps
 
-1. [Configure storage backends](STORAGE.md)
-2. [Set up monitoring](MONITORING.md)
+1. Configure storage backends (see .env.example for options)
+2. Set up monitoring (included in setup wizard)
 3. [Review API documentation](API.md)
-4. [Production best practices](PRODUCTION.md)
+4. [Production best practices](SETUP.md#production-setup)

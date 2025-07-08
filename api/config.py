@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     ADMIN_API_KEYS: str = ""  # Comma-separated list of admin API keys
     
     # CORS
-    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
+    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost", "https://localhost"])
     
     # Monitoring
     ENABLE_METRICS: bool = True

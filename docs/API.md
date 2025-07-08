@@ -22,12 +22,12 @@ The Rendiff API provides a RESTful interface to FFmpeg's media processing capabi
 All API requests should be made to:
 
 ```
-http://your-server:8080/api/v1
+http://your-server:8000/api/v1
 ```
 
 ### Base URL Structure
 
-- Development: `http://localhost:8080/api/v1`
+- Development: `http://localhost:8000/api/v1`
 - Production: `https://your-domain.com/api/v1` (HTTPS recommended)
 
 ### HTTPS Configuration
@@ -76,8 +76,8 @@ See the [SSL Management Guide](SETUP.md#httpssl-configuration) for detailed info
 | **[🚀 Setup Guide](SETUP.md)** | Complete deployment guide | Setting up |
 | **[🔧 API Reference](API.md)** | Detailed API documentation | **You are here** |
 | **[📦 Installation Guide](INSTALLATION.md)** | Advanced installation options | Custom installs |
-| **[🏭 Deployment Guide](../DEPLOYMENT.md)** | Production best practices | Production setup |
-| **[🛡️ Security Guide](../SECURITY.md)** | Security configuration | Security hardening |
+| **[🏭 Production Setup](SETUP.md#production-setup)** | Production best practices | Production setup |
+| **[🛡️ HTTPS/SSL Configuration](SETUP.md#httpssl-configuration)** | Security configuration | Security hardening |
 
 ### Content Type
 
@@ -463,7 +463,7 @@ GET /api/v1/jobs/{job_id}/logs?lines=100
 ### Example 1: Simple MP4 Conversion
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/convert \
+curl -X POST http://localhost:8000/api/v1/convert \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -475,7 +475,7 @@ curl -X POST http://localhost:8080/api/v1/convert \
 ### Example 2: Resize Video
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/convert \
+curl -X POST http://localhost:8000/api/v1/convert \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -490,7 +490,7 @@ curl -X POST http://localhost:8080/api/v1/convert \
 ### Example 3: Extract Audio
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/convert \
+curl -X POST http://localhost:8000/api/v1/convert \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -505,7 +505,7 @@ curl -X POST http://localhost:8080/api/v1/convert \
 ### Example 4: Create HLS Stream
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/stream \
+curl -X POST http://localhost:8000/api/v1/stream \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -526,7 +526,7 @@ curl -X POST http://localhost:8080/api/v1/stream \
 ```python
 from rendiff import RendiffClient
 
-client = RendiffClient(api_key="your-api-key", base_url="http://localhost:8080")
+client = RendiffClient(api_key="your-api-key", base_url="http://localhost:8000")
 
 # Simple conversion
 job = client.convert(
@@ -550,7 +550,7 @@ import { RendiffClient } from '@rendiff/sdk';
 
 const client = new RendiffClient({
   apiKey: 'your-api-key',
-  baseUrl: 'http://localhost:8080'
+  baseUrl: 'http://localhost:8000'
 });
 
 // Convert with async/await
@@ -788,7 +788,7 @@ The API automatically redirects HTTP traffic to HTTPS when SSL is enabled.
 
 ## Support
 
-- API Documentation: http://localhost:8080/docs
-- OpenAPI Schema: http://localhost:8080/openapi.json
-- GitHub: https://github.com/rendiff/rendiff
+- API Documentation: http://localhost:8000/docs
+- OpenAPI Schema: http://localhost:8000/openapi.json
+- GitHub: https://github.com/rendiffdev/ffmpeg-api
 - Discord: https://discord.gg/rendiff

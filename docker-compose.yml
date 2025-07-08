@@ -19,19 +19,51 @@ services:
     networks:
       - rendiff
 
-  # API Gateway
-  krakend:
-    image: devopsfaith/krakend:2.6
-    container_name: rendiff_gateway
-    volumes:
-      - ./config/krakend.json:/etc/krakend/krakend.json:ro
+  # Traefik Reverse Proxy with HTTPS (runs by default)
+  traefik:
+    image: traefik:v3.0
+    container_name: rendiff_traefik
+    command:
+      - --configFile=/etc/traefik/traefik.yml
     ports:
-      - "8080:8080"
+      - "80:80"
+      - "443:443"
+      - "8081:8080"  # Dashboard on 8081 to avoid conflict
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./traefik/certs:/etc/traefik/certs:ro
     depends_on:
       - api
     networks:
       - rendiff
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      
+  # API Gateway (now behind Traefik)
+  krakend:
+    image: devopsfaith/krakend:2.6
+    container_name: rendiff_gateway
+    volumes:
+      - ./config/krakend.json:/etc/krakend/krakend.json:ro
+    # No port exposure - accessed through Traefik
+    depends_on:
+      - api
+    networks:
+      - rendiff
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.krakend.rule=Host(`localhost`) && PathPrefix(`/`)"
+      - "traefik.http.routers.krakend.entrypoints=websecure"
+      - "traefik.http.routers.krakend.tls=true"
+      - "traefik.http.services.krakend.loadbalancer.server.port=8080"
 
   # Database Service
   postgres:

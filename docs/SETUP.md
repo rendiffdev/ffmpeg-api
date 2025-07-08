@@ -25,7 +25,7 @@ cd ffmpeg-api
 # Choose your setup type
 ./setup.sh --help                    # Show all options
 ./setup.sh --development             # Quick dev setup
-./setup.sh --production              # Production with wizard
+./setup.sh --interactive             # Interactive setup wizard
 ./setup.sh --standard                # Standard production
 ./setup.sh --genai                   # AI-enabled production
 ./setup.sh --interactive             # Full configuration wizard
@@ -45,7 +45,7 @@ cd ffmpeg-api
 - Local Redis
 - Debug mode enabled
 - No authentication required
-- API available at http://localhost:8080
+- API available at http://localhost:8000
 
 ### 🏭 Standard Production
 **Best for: Production deployment without AI features**
@@ -57,10 +57,13 @@ cd ffmpeg-api
 **What you get:**
 - PostgreSQL database
 - Redis queue system
+- **HTTPS by default (self-signed certificate)**
+- Traefik reverse proxy with SSL termination
 - Prometheus monitoring
 - API key authentication
 - Production-optimized settings
 - 2 CPU workers
+- Automatic HTTP to HTTPS redirect
 
 ### 🤖 GenAI Production
 **Best for: AI-enhanced video processing**
@@ -71,25 +74,32 @@ cd ffmpeg-api
 
 **What you get:**
 - Everything from Standard Production
+- **HTTPS by default (self-signed certificate)**
 - GPU support for AI processing
 - AI models (Real-ESRGAN, VideoMAE, etc.)
 - GenAI workers
 - Enhanced analysis capabilities
 - AI endpoints at `/api/genai/v1/*`
 
-### 🛡️ Production with HTTPS
-**Best for: Internet-facing deployments**
+### 🛡️ Production with Let's Encrypt HTTPS
+**Best for: Internet-facing deployments with domain names**
 
 ```bash
-./setup.sh --production
-# Choose option 2 or 4 for HTTPS
+# Set your domain first
+export DOMAIN_NAME=api.yourdomain.com
+export CERTBOT_EMAIL=admin@yourdomain.com
+
+./setup.sh --interactive
+# Choose HTTPS option during setup
 ```
 
 **What you get:**
-- Traefik reverse proxy
-- Automatic SSL certificates (Let's Encrypt)
-- Security headers
-- Rate limiting
+- Traefik reverse proxy with advanced SSL
+- **Automatic SSL certificates (Let's Encrypt)**
+- Certificate auto-renewal
+- Enhanced security headers
+- Rate limiting and DDoS protection
+- SSL monitoring and alerts
 - Access at https://your-domain.com
 
 ### ⚙️ Interactive Setup
@@ -121,10 +131,10 @@ Perfect for local development and testing:
 ./setup.sh --development
 
 # 2. Verify deployment
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8000/api/v1/health
 
 # 3. Access documentation
-open http://localhost:8080/docs
+open http://localhost:8000/docs
 ```
 
 ### Development Features
@@ -172,7 +182,7 @@ Enterprise-ready deployment with full security and monitoring:
 ./setup.sh --validate
 
 # 3. Check all services
-docker-compose -f docker-compose.prod.yml ps
+docker-compose ps
 ```
 
 ### Production Features
@@ -191,8 +201,8 @@ export DOMAIN_NAME=your-domain.com
 export CERTBOT_EMAIL=admin@your-domain.com
 
 # 2. Setup with HTTPS
-./setup.sh --production
-# Choose option 2 for HTTPS
+./setup.sh --interactive
+# Choose HTTPS option during setup
 
 # 3. Verify SSL
 curl -I https://your-domain.com/api/v1/health
@@ -214,10 +224,10 @@ curl -I https://your-domain.com/api/v1/health
 ./scripts/backup.sh create
 
 # View production logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker-compose logs -f
 
 # Scale workers
-docker-compose -f docker-compose.prod.yml up -d --scale worker-cpu=4
+docker-compose up -d --scale worker-cpu=4
 ```
 
 ## GenAI Setup
@@ -243,7 +253,7 @@ nvidia-smi
 docker-compose logs -f model-downloader
 
 # 4. Verify GenAI endpoints
-curl http://localhost:8080/api/genai/v1/health
+curl https://localhost/api/genai/v1/health
 ```
 
 ### GenAI Features
@@ -260,10 +270,10 @@ curl http://localhost:8080/api/genai/v1/health
 docker-compose exec worker-genai nvidia-smi
 
 # Download additional models
-docker-compose -f docker-compose.genai.yml --profile setup run model-downloader
+docker-compose --profile setup run model-downloader
 
 # Scale GenAI workers
-docker-compose -f docker-compose.genai.yml up -d --scale worker-genai=2
+docker-compose up -d --scale worker-genai=2
 
 # View GenAI logs
 docker-compose logs -f worker-genai
@@ -286,21 +296,101 @@ POST /api/genai/v1/optimize/parameters
 
 ## HTTPS/SSL Configuration
 
-Secure deployment with automatic SSL certificates:
+**🔒 Important:** ALL production deployments (`--standard`, `--genai`) come with HTTPS enabled by default using self-signed certificates. No additional configuration required!
 
-### Domain Setup
+### Default HTTPS Behavior
+
+When you run production setup:
+```bash
+./setup.sh --standard
+```
+
+You automatically get:
+- ✅ **HTTPS enabled on port 443**
+- ✅ **HTTP to HTTPS redirect on port 80**
+- ✅ **Self-signed certificate (valid for 365 days)**
+- ✅ **Modern TLS 1.2/1.3 configuration**
+- ✅ **Security headers enabled**
+- ✅ **Certificate monitoring and expiration alerts**
+- ✅ **Comprehensive SSL management tools**
+
+### SSL Certificate Types Supported
+
+#### 1. Self-Signed Certificates (Default)
+- ✅ **Automatic generation**
+- ✅ **Works immediately with localhost**
+- ✅ **Perfect for development and internal use**
+- ⚠️ **Browser security warnings (expected)**
+
+#### 2. Let's Encrypt Certificates (Production)
+- ✅ **Free, trusted certificates**
+- ✅ **Automatic renewal**
+- ✅ **No browser warnings**
+- ✅ **Requires valid domain name**
+
+#### 3. Commercial SSL Certificates
+- ✅ **EV/OV certificate support**
+- ✅ **Wildcard certificate support**
+- ✅ **Custom CA integration**
+- ✅ **Manual installation workflow**
+
+### For Production Domains
+
+#### Let's Encrypt Setup (Recommended)
 ```bash
 # 1. Point your domain to the server
 # 2. Configure domain in environment
 export DOMAIN_NAME=api.example.com
 export CERTBOT_EMAIL=admin@example.com
 
-# 3. Setup with automatic SSL
-./setup.sh --production
-# Choose HTTPS option
+# 3. Setup with Let's Encrypt SSL
+./setup.sh --interactive
+# Choose option 2 for Standard + Let's Encrypt
+# Choose option 4 for GenAI + Let's Encrypt
+```
+
+#### Commercial SSL Certificate Setup
+```bash
+# 1. Setup standard deployment first
+./setup.sh --standard
+
+# 2. Install your commercial certificate
+./scripts/enhanced-ssl-manager.sh install-commercial /path/to/cert.crt /path/to/private.key
+
+# 3. Restart services to apply certificate
+docker-compose restart traefik
 ```
 
 ### Manual SSL Management
+
+#### Enhanced SSL Manager Commands
+```bash
+# Show all available commands
+./scripts/enhanced-ssl-manager.sh --help
+
+# Generate certificates
+./scripts/enhanced-ssl-manager.sh generate-self-signed api.example.com
+./scripts/enhanced-ssl-manager.sh generate-letsencrypt api.example.com admin@example.com
+
+# Certificate information
+./scripts/enhanced-ssl-manager.sh list                    # List all certificates
+./scripts/enhanced-ssl-manager.sh show api.example.com   # Show certificate details
+./scripts/enhanced-ssl-manager.sh check-expiration       # Check expiration dates
+
+# Testing and validation
+./scripts/enhanced-ssl-manager.sh test-ssl api.example.com
+./scripts/enhanced-ssl-manager.sh validate /path/to/cert.crt
+
+# Backup and restore
+./scripts/enhanced-ssl-manager.sh backup                 # Backup all certificates
+./scripts/enhanced-ssl-manager.sh restore 20240108       # Restore from backup
+
+# Monitoring
+./scripts/enhanced-ssl-manager.sh monitor-start          # Start SSL monitoring
+./scripts/enhanced-ssl-manager.sh monitor-status         # Check monitor status
+```
+
+#### Legacy SSL Manager (Still Available)
 ```bash
 # Generate Let's Encrypt certificate
 ./scripts/manage-ssl.sh generate-letsencrypt api.example.com admin@example.com
@@ -319,11 +409,30 @@ export CERTBOT_EMAIL=admin@example.com
 ```
 
 ### SSL Features
+
+#### Security Features
 - **Automatic renewal** of Let's Encrypt certificates
-- **Security headers** (HSTS, CSP, etc.)
-- **TLS 1.2/1.3** support
-- **Perfect forward secrecy**
-- **Certificate monitoring** and alerts
+- **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
+- **TLS 1.2/1.3** support only (TLS 1.0/1.1 disabled)
+- **Perfect forward secrecy** with ECDHE ciphers
+- **OCSP stapling** for enhanced performance
+- **HTTP/2 and HTTP/3** support
+
+#### Monitoring & Management
+- **Certificate expiration monitoring** with 30-day alerts
+- **SSL connection testing** and validation
+- **Certificate chain verification**
+- **Automatic backup** of all certificates
+- **Health checks** for SSL services
+- **Performance monitoring** and metrics
+
+#### Advanced Features
+- **Multiple certificate types** (self-signed, Let's Encrypt, commercial)
+- **Wildcard certificate** support
+- **Multi-domain** certificate management
+- **Certificate format conversion** (PEM, DER, PKCS#12)
+- **CSR generation** for commercial certificates
+- **Rate limiting** and DDoS protection
 
 ## Configuration Management
 
@@ -402,7 +511,7 @@ docker stats
 ./scripts/manage-api-keys.sh list
 
 # Test API access
-curl -H "X-API-Key: your-key" http://localhost:8080/api/v1/health
+curl -H "X-API-Key: your-key" http://localhost:8000/api/v1/health
 
 # Regenerate keys if needed
 ./scripts/manage-api-keys.sh generate
@@ -411,7 +520,7 @@ curl -H "X-API-Key: your-key" http://localhost:8080/api/v1/health
 #### 🌐 Network Issues
 ```bash
 # Check port conflicts
-netstat -tulpn | grep :8080
+netstat -tulpn | grep :8000
 
 # Verify Docker networks
 docker network ls
@@ -497,7 +606,7 @@ FROM pg_stats WHERE tablename='jobs';"
 | **[🚀 Setup Guide](SETUP.md)** | Complete deployment guide | **You are here** |
 | **[🔧 API Reference](API.md)** | Detailed API documentation | Using the API |
 | **[📦 Installation Guide](INSTALLATION.md)** | Advanced installation options | Custom installs |
-| **[🏭 Deployment Guide](../DEPLOYMENT.md)** | Production best practices | Production setup |
-| **[🛡️ Security Guide](../SECURITY.md)** | Security configuration | Security hardening |
+| **[🏭 Production Setup](#production-setup)** | Production best practices | Production setup |
+| **[🛡️ HTTPS/SSL Configuration](#httpssl-configuration)** | Security configuration | Security hardening |
 
 **Need help?** Check the [troubleshooting section](#troubleshooting) or [open an issue](https://github.com/rendiffdev/ffmpeg-api/issues).
