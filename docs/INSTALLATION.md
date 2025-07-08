@@ -2,6 +2,10 @@
 
 This guide covers various installation methods for the Rendiff FFmpeg API service.
 
+> **🚀 Quick Setup?** Use the [unified setup script](../setup.sh) for one-command deployment.  
+> **📖 Detailed Setup?** See the [Setup Guide](SETUP.md) for comprehensive deployment documentation.  
+> **🔧 API Usage?** Check the [API Reference](API.md) for endpoint documentation.
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
@@ -41,39 +45,55 @@ git clone https://github.com/rendiffdev/ffmpeg-api.git
 cd ffmpeg-api
 ```
 
-### Step 2: Run Setup Wizard
+### Step 2: Choose Your Setup Method
 
+#### Option A: Interactive Setup Wizard (Recommended)
 ```bash
-# Run the interactive setup wizard
-docker-compose run --rm setup
+# Run the comprehensive setup wizard
+./quick-start.sh
+```
+
+#### Option B: Docker-Only Setup
+```bash
+# Run the setup container directly
+docker-compose -f docker-compose.setup-only.yml run --rm setup
+```
+
+#### Option C: Script-Only Setup
+```bash
+# Run the setup script directly (for automation)
+./scripts/interactive-setup.sh
 ```
 
 The setup wizard will guide you through:
 
-1. **Deployment Configuration**
-   - Choose deployment type (Docker, Kubernetes, Manual)
-   - Select deployment profile (Minimal, Standard, Full)
+1. **Basic Configuration**
+   - API host, port, and external URL
+   - Number of API workers
 
-2. **API Configuration**
-   - API bind address and port
-   - Number of workers
-   - External URL for webhooks
+2. **Database Configuration**
+   - Choose PostgreSQL (production) or SQLite (development)
+   - Automatic secure password generation
+   - Database initialization
 
-3. **Storage Configuration**
-   - Configure storage backends:
-     - Local filesystem
-     - S3-compatible storage (AWS S3, MinIO, etc.)
-     - Note: Additional backends (Azure, GCS, NFS) planned for future releases
-   - Set input/output policies
-   - Choose default backend
+3. **Security Configuration**
+   - Admin API key generation (32-character secure keys)
+   - Rendiff API key generation for client access
+   - Grafana admin password generation
 
-4. **Security Settings**
-   - Enable/disable API key authentication
-   - Generate secure API keys
-   - Configure IP whitelisting (optional)
+4. **Storage Backend Setup**
+   - Local filesystem (default)
+   - AWS S3 compatible storage
+   - Azure Blob Storage
+   - Google Cloud Storage
 
-5. **Resource Limits**
-   - Maximum file size
+5. **Monitoring Configuration** (optional)
+   - Prometheus metrics collection
+   - Grafana dashboards
+   - Health check endpoints
+
+6. **Resource Limits & Workers**
+   - Upload size limits
    - Concurrent job limits
    - CPU/GPU worker configuration
 

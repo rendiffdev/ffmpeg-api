@@ -21,10 +21,10 @@ services:
       - EXTERNAL_URL=${EXTERNAL_URL:-http://localhost:8080}
       
       # Database
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      - DATABASE_URL=${DATABASE_URL}
       
       # Queue
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_URL=${REDIS_URL}
       
       # Security
       - ENABLE_API_KEYS=${ENABLE_API_KEYS:-true}
@@ -65,6 +65,17 @@ services:
           cpus: '0.5'
     networks:
       - rendiff-network
+    labels:
+      # Enable Traefik for this service
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.routers.api.middlewares=api-middleware"
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      - "traefik.http.services.api.loadbalancer.healthcheck.path=/api/v1/health"
+      - "traefik.http.middlewares.api-middleware.chain.middlewares=security-headers,api-rate-limit,compression"
 
   # CPU Workers
   worker-cpu:
@@ -75,8 +86,8 @@ services:
         WORKER_TYPE: cpu
     restart: unless-stopped
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - WORKER_TYPE=cpu
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
     volumes:
@@ -116,8 +127,8 @@ services:
         WORKER_TYPE: gpu
     restart: unless-stopped
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///data/rendiff.db}
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - WORKER_TYPE=gpu
       - WORKER_CONCURRENCY=${GPU_WORKER_CONCURRENCY:-2}
       - NVIDIA_VISIBLE_DEVICES=all
@@ -159,8 +170,8 @@ services:
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"  # Remove port exposure for security
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -185,11 +196,11 @@ services:
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-rendiff}
       - POSTGRES_USER=${POSTGRES_USER:-rendiff}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"  # Remove port exposure for security
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rendiff}"]
       interval: 10s
@@ -210,7 +221,7 @@ services:
 
   # Prometheus for metrics
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.48.0
     container_name: rendiff-prometheus
     restart: unless-stopped
     ports:
@@ -242,16 +253,25 @@ services:
       - monitoring
     networks:
       - rendiff-network
+    labels:
+      # Enable Traefik for this service
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.prometheus.service=prometheus"
+      - "traefik.http.routers.prometheus.middlewares=security-headers"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   # Grafana for dashboards
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.0
     container_name: rendiff-grafana
     restart: unless-stopped
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
@@ -277,24 +297,42 @@ services:
       - monitoring
     networks:
       - rendiff-network
+    labels:
+      # Enable Traefik for this service
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.grafana.service=grafana"
+      - "traefik.http.routers.grafana.middlewares=security-headers"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
-  # Nginx reverse proxy (optional)
-  nginx:
-    image: nginx:alpine
-    container_name: rendiff-nginx
+  # Traefik reverse proxy (recommended for production)
+  traefik:
+    image: traefik:v3.0
+    container_name: rendiff-traefik
     restart: unless-stopped
+    command:
+      - --configFile=/etc/traefik/traefik.yml
     ports:
-      - "${NGINX_HTTP_PORT:-80}:80"
-      - "${NGINX_HTTPS_PORT:-443}:443"
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
+      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - traefik_ssl_data:/letsencrypt
+      - traefik_logs:/var/log/traefik
+    environment:
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL:-admin@localhost}
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -307,9 +345,16 @@ services:
           memory: 128M
           cpus: '0.1'
     profiles:
-      - nginx
+      - traefik
     networks:
       - rendiff-network
+    labels:
+      # Enable Traefik for the dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=${CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
 
 volumes:
   redis_data:
@@ -320,7 +365,9 @@ volumes:
     driver: local
   grafana_data:
     driver: local
-  nginx_logs:
+  traefik_ssl_data:
+    driver: local
+  traefik_logs:
     driver: local
 
 networks:

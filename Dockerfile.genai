@@ -44,11 +44,18 @@ RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https:/
 # Copy application code
 COPY . .
 
+# Create user for security
+RUN groupadd -r rendiff && useradd -r -g rendiff -u 1000 rendiff
+
 # Create necessary directories
 RUN mkdir -p /app/storage /app/models/genai /tmp/ffmpeg
 
-# Set permissions
-RUN chmod +x /app/entrypoint.sh
+# Set permissions and ownership
+RUN chmod +x /app/entrypoint.sh && \
+    chown -R rendiff:rendiff /app /tmp/ffmpeg
+
+# Switch to non-root user
+USER rendiff
 
 # Expose ports
 EXPOSE 8000 9000

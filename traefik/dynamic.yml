@@ -1,0 +1,129 @@
+# Traefik Dynamic Configuration
+
+# TLS Options
+tls:
+  options:
+    default:
+      sslStrategies:
+        - "tls.SniStrict"
+      minVersion: "VersionTLS12"
+      maxVersion: "VersionTLS13"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305"
+      curvePreferences:
+        - "CurveP521"
+        - "CurveP384"
+        - "CurveP256"
+      sniStrict: true
+
+# Middlewares
+http:
+  middlewares:
+    # Security Headers
+    security-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "*"
+        accessControlMaxAge: 100
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        referrerPolicy: "same-origin"
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
+          server: ""
+          X-Powered-By: ""
+        sslProxyHeaders:
+          X-Forwarded-Proto: "https"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        customFrameOptionsValue: "DENY"
+    
+    # Rate Limiting
+    api-rate-limit:
+      rateLimit:
+        average: 10
+        period: "1s"
+        burst: 20
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+    
+    upload-rate-limit:
+      rateLimit:
+        average: 5
+        period: "1s"
+        burst: 10
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+    
+    # Auth Middleware (if needed)
+    api-auth:
+      basicAuth:
+        users:
+          - "admin:$2y$10$..."  # Generated hash for admin user
+    
+    # Compression
+    compression:
+      compress: {}
+    
+    # Request Size Limit
+    request-limit:
+      buffering:
+        maxRequestBodyBytes: 10737418240  # 10GB
+        retryExpression: "IsNetworkError() && Attempts() <= 3"
+
+  # Services (can be defined here or via Docker labels)
+  services:
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://api:8000"
+        passHostHeader: true
+        healthCheck:
+          path: "/api/v1/health"
+          interval: "30s"
+          timeout: "10s"
+          scheme: "http"
+    
+    genai:
+      loadBalancer:
+        servers:
+          - url: "http://genai:8001"
+        passHostHeader: true
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "10s"
+          scheme: "http"
+
+  # Routers (can be defined here or via Docker labels)
+  routers:
+    # Dashboard (secured)
+    traefik-dashboard:
+      rule: "Host(`traefik.${DOMAIN_NAME:-localhost}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      entryPoints:
+        - websecure
+      service: api@internal
+      middlewares:
+        - security-headers
+      tls:
+        certResolver: "${CERT_RESOLVER:-letsencrypt}"

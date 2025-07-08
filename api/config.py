@@ -116,6 +116,11 @@ class Settings(BaseSettings):
         elif self.DATABASE_URL.startswith("sqlite://"):
             return self.DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
         return self.DATABASE_URL
+    
+    @property
+    def VALKEY_URL(self) -> str:
+        """Alias for REDIS_URL for compatibility with worker."""
+        return self.REDIS_URL
 
 
 @lru_cache()

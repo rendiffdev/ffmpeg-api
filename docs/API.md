@@ -6,15 +6,20 @@ Complete API reference for the Rendiff FFmpeg API service.
 
 1. [Overview](#overview)
 2. [Authentication](#authentication)
-3. [Core Endpoints](#core-endpoints)
-4. [Job Management](#job-management)
-5. [Error Handling](#error-handling)
-6. [Examples](#examples)
-7. [SDKs](#sdks)
+3. [API Key Management](#api-key-management)
+4. [Core Endpoints](#core-endpoints)
+5. [Job Management](#job-management)
+6. [Error Handling](#error-handling)
+7. [Examples](#examples)
+8. [SDKs](#sdks)
 
 ## Overview
 
-The Rendiff API provides a RESTful interface to FFmpeg's media processing capabilities. All API requests should be made to:
+The Rendiff API provides a RESTful interface to FFmpeg's media processing capabilities with optional AI enhancement. 
+
+> **💡 New to setup?** See the [Setup Guide](SETUP.md) for deployment instructions.
+
+All API requests should be made to:
 
 ```
 http://your-server:8080/api/v1
@@ -23,7 +28,56 @@ http://your-server:8080/api/v1
 ### Base URL Structure
 
 - Development: `http://localhost:8080/api/v1`
-- Production: `https://your-domain.com/api/v1`
+- Production: `https://your-domain.com/api/v1` (HTTPS recommended)
+
+### HTTPS Configuration
+
+For production deployments, HTTPS is strongly recommended. The API supports both self-signed certificates for testing and Let's Encrypt certificates for production.
+
+#### Quick HTTPS Setup
+
+1. **Interactive Setup**: Run the setup wizard and choose HTTPS options
+   ```bash
+   ./scripts/interactive-setup.sh
+   # Choose option 2 (self-signed) or 3 (Let's Encrypt) for SSL configuration
+   ```
+
+2. **Manual Certificate Generation**:
+   ```bash
+   # Self-signed certificate
+   ./scripts/manage-ssl.sh generate-self-signed your-domain.com
+   
+   # Let's Encrypt certificate
+   ./scripts/manage-ssl.sh generate-letsencrypt your-domain.com admin@example.com
+   ```
+
+3. **Deploy with HTTPS**:
+   ```bash
+   # Production deployment with Traefik (includes HTTPS)
+   docker-compose -f docker-compose.prod.yml --profile traefik up -d
+   ```
+
+#### SSL Certificate Management
+
+- **List certificates**: `./scripts/manage-ssl.sh list`
+- **Test SSL setup**: `./scripts/manage-ssl.sh test your-domain.com`
+- **Validate configuration**: `./scripts/manage-ssl.sh validate your-domain.com`
+- **Renew certificates**: `./scripts/manage-ssl.sh renew`
+
+See the [SSL Management Guide](SETUP.md#httpssl-configuration) for detailed information.
+
+---
+
+## 📚 Documentation Navigation
+
+| Guide | Description | When to Use |
+|-------|-------------|-------------|
+| **[🏠 Main README](../README.md)** | Project overview and quick start | Start here |
+| **[🚀 Setup Guide](SETUP.md)** | Complete deployment guide | Setting up |
+| **[🔧 API Reference](API.md)** | Detailed API documentation | **You are here** |
+| **[📦 Installation Guide](INSTALLATION.md)** | Advanced installation options | Custom installs |
+| **[🏭 Deployment Guide](../DEPLOYMENT.md)** | Production best practices | Production setup |
+| **[🛡️ Security Guide](../SECURITY.md)** | Security configuration | Security hardening |
 
 ### Content Type
 
@@ -46,6 +100,95 @@ Or use Bearer token:
 
 ```http
 Authorization: Bearer your-api-key-here
+```
+
+## API Key Management
+
+### Overview
+
+The FFmpeg API uses a dual API key system:
+- **Admin API Keys**: System administration and management
+- **Rendiff API Keys**: Client authentication for regular API access
+
+### Managing API Keys
+
+#### Generate New API Keys
+```bash
+# List current API keys
+./scripts/manage-api-keys.sh list
+
+# Generate new API keys
+./scripts/manage-api-keys.sh generate
+
+# Test API keys
+./scripts/manage-api-keys.sh test
+```
+
+#### Security Operations
+```bash
+# Rotate all keys (security incident response)
+./scripts/manage-api-keys.sh rotate
+
+# Delete specific keys
+./scripts/manage-api-keys.sh delete
+
+# Export keys securely
+./scripts/manage-api-keys.sh export
+```
+
+### API Key Types
+
+#### Admin API Keys
+- **Purpose**: Administrative access to management endpoints
+- **Usage**: System monitoring, cleanup, configuration
+- **Generation**: Automatically during setup
+- **Access**: Admin endpoints (`/admin/*`)
+
+#### Rendiff API Keys  
+- **Purpose**: Client authentication for regular API operations
+- **Usage**: Video processing, job submission, file operations
+- **Generation**: Interactive setup or management script
+- **Access**: All API endpoints (`/api/v1/*`)
+
+### Key Security Best Practices
+
+1. **Regular Rotation**: Rotate keys every 90 days
+2. **Unique Keys**: Use different keys per client/application
+3. **Secure Storage**: Store keys in environment variables
+4. **Access Monitoring**: Monitor for unauthorized usage
+5. **Immediate Rotation**: Rotate immediately if compromise suspected
+
+### Authentication Examples
+
+#### Using curl
+```bash
+# With API key header
+curl -H "X-API-Key: your_api_key_here" \
+     http://localhost:8000/api/v1/jobs
+
+# With Bearer token
+curl -H "Authorization: Bearer your_api_key_here" \
+     http://localhost:8000/api/v1/jobs
+```
+
+#### Using Python requests
+```python
+import requests
+
+headers = {"X-API-Key": "your_api_key_here"}
+response = requests.get("http://localhost:8000/api/v1/jobs", headers=headers)
+```
+
+#### Using JavaScript fetch
+```javascript
+const headers = {
+  'X-API-Key': 'your_api_key_here',
+  'Content-Type': 'application/json'
+};
+
+fetch('http://localhost:8000/api/v1/jobs', { headers })
+  .then(response => response.json())
+  .then(data => console.log(data));
 ```
 
 ### Obtaining API Keys
@@ -463,6 +606,185 @@ Webhook payload:
   }
 }
 ```
+
+## SSL Certificate Management
+
+### Overview
+
+The FFmpeg API provides comprehensive SSL/TLS certificate management for secure HTTPS communication. This includes support for both self-signed certificates (for development/testing) and Let's Encrypt certificates (for production).
+
+### Certificate Types
+
+#### Self-Signed Certificates
+- **Use Case**: Development, testing, internal networks
+- **Pros**: Quick setup, no external dependencies
+- **Cons**: Browser warnings, not trusted by default
+- **Generation**: `./scripts/manage-ssl.sh generate-self-signed your-domain.com`
+
+#### Let's Encrypt Certificates
+- **Use Case**: Production deployments with public domains
+- **Pros**: Trusted by browsers, free, auto-renewal
+- **Cons**: Requires public domain, rate limits
+- **Generation**: `./scripts/manage-ssl.sh generate-letsencrypt your-domain.com admin@example.com`
+
+### SSL Management Commands
+
+#### Certificate Generation
+```bash
+# Generate self-signed certificate
+./scripts/manage-ssl.sh generate-self-signed api.example.com
+
+# Generate Let's Encrypt certificate (production)
+./scripts/manage-ssl.sh generate-letsencrypt api.example.com admin@example.com
+
+# Generate Let's Encrypt certificate (staging/testing)
+./scripts/manage-ssl.sh generate-letsencrypt api.example.com admin@example.com --staging
+```
+
+#### Certificate Information
+```bash
+# List current certificates
+./scripts/manage-ssl.sh list
+
+# View certificate details
+./scripts/manage-ssl.sh list
+# Output shows:
+# - Certificate type (self-signed/letsencrypt)
+# - Domain name
+# - Creation and expiration dates
+# - Certificate validity status
+```
+
+#### Certificate Testing
+```bash
+# Basic SSL configuration test
+./scripts/manage-ssl.sh test api.example.com
+
+# Comprehensive validation (recommended)
+./scripts/manage-ssl.sh validate api.example.com
+```
+
+The validation command performs a 10-point check:
+1. Certificate file existence and permissions
+2. Certificate content validation
+3. Private key validation
+4. Certificate-key pair matching
+5. Certificate expiration check
+6. Domain name validation (CN and SAN)
+7. DNS resolution verification
+8. Port connectivity test (80, 443)
+9. Nginx configuration validation
+10. Docker Compose configuration check
+
+#### Certificate Renewal
+```bash
+# Renew certificates (automatically detects type)
+./scripts/manage-ssl.sh renew
+
+# Let's Encrypt certificates renew automatically via cron job
+# Self-signed certificates are regenerated with new expiration
+```
+
+### HTTPS Deployment
+
+#### Using Docker Compose
+```bash
+# Standard HTTP deployment
+docker-compose up -d
+
+# HTTPS deployment with SSL certificates
+docker-compose -f docker-compose.yml -f docker-compose.https.yml up -d
+```
+
+#### Manual Nginx Configuration
+If you prefer to manage Nginx separately:
+```bash
+# Copy SSL certificates to nginx directory
+cp ./ssl/cert.pem ./nginx/ssl/
+cp ./ssl/key.pem ./nginx/ssl/
+
+# Use the provided nginx.conf for HTTPS
+# Configuration includes:
+# - HTTP to HTTPS redirects
+# - SSL/TLS security headers
+# - Rate limiting
+# - Proxy configurations
+```
+
+### Security Best Practices
+
+#### SSL/TLS Configuration
+- **TLS Version**: TLS 1.2 and 1.3 only
+- **Cipher Suites**: Modern, secure cipher suites
+- **HSTS**: HTTP Strict Transport Security enabled
+- **OCSP Stapling**: Enabled for performance
+- **Security Headers**: X-Frame-Options, X-Content-Type-Options, etc.
+
+#### Certificate Management
+- **Regular Renewal**: Let's Encrypt certificates auto-renew every 60 days
+- **Monitoring**: Certificate expiration alerts built-in
+- **Backup**: Certificate information stored in `./ssl/cert_info.json`
+- **Validation**: Regular validation recommended
+
+#### Domain Requirements for Let's Encrypt
+- **DNS Resolution**: Domain must resolve to your server's public IP
+- **Port Access**: Ports 80 and 443 must be accessible from the internet
+- **Rate Limits**: Let's Encrypt has rate limits (20 certificates per domain per week)
+- **Validation**: HTTP-01 challenge used for domain validation
+
+### Troubleshooting
+
+#### Common Issues
+
+**Certificate generation fails**:
+```bash
+# Check domain resolution
+./scripts/manage-ssl.sh validate your-domain.com
+
+# Verify ports are accessible
+netstat -tulnp | grep :80
+netstat -tulnp | grep :443
+```
+
+**Browser shows certificate warnings**:
+- Self-signed certificates will always show warnings
+- Check certificate domain matches the URL
+- Verify certificate is not expired
+
+**Let's Encrypt validation fails**:
+- Ensure domain resolves to your server
+- Check firewall allows ports 80 and 443
+- Verify no other services are using port 80
+- Use staging environment for testing
+
+**Certificate renewal fails**:
+```bash
+# Check certificate status
+./scripts/manage-ssl.sh list
+
+# Manual renewal attempt
+./scripts/manage-ssl.sh renew
+
+# For Let's Encrypt, check logs
+docker-compose logs certbot
+```
+
+#### Log Files
+- **SSL Management**: `./ssl/renewal.log`
+- **Nginx**: Container logs via `docker-compose logs nginx`
+- **Let's Encrypt**: Container logs via `docker-compose logs certbot`
+
+### Integration with API
+
+Once HTTPS is configured, all API endpoints are available via secure connections:
+
+```bash
+# HTTPS API calls
+curl -H "X-API-Key: your-key" https://your-domain.com/api/v1/health
+curl -H "X-API-Key: your-key" https://your-domain.com/api/v1/jobs
+```
+
+The API automatically redirects HTTP traffic to HTTPS when SSL is enabled.
 
 ## Support
 

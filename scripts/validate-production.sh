@@ -126,7 +126,40 @@ if [ -n "$ADMIN_API_KEYS" ]; then
 fi
 
 echo ""
-echo "5. Checking Monitoring Configuration"
+echo "5. Checking Rendiff API Keys"
+echo "----------------------------"
+if [ -n "$RENDIFF_API_KEYS" ]; then
+    IFS=',' read -ra RENDIFF_KEYS <<< "$RENDIFF_API_KEYS"
+    if [ ${#RENDIFF_KEYS[@]} -lt 1 ]; then
+        echo -e "${YELLOW}⚠${NC}  Warning: No Rendiff API keys configured"
+        ((WARNINGS++))
+    else
+        echo -e "${GREEN}✓${NC} ${#RENDIFF_KEYS[@]} Rendiff API keys configured"
+        
+        # Validate key format and length
+        local valid_keys=0
+        for key in "${RENDIFF_KEYS[@]}"; do
+            key=$(echo "$key" | xargs)  # Trim whitespace
+            if [ ${#key} -ge 16 ]; then
+                ((valid_keys++))
+            else
+                echo -e "${YELLOW}⚠${NC}  Warning: API key is too short (minimum 16 characters)"
+                ((WARNINGS++))
+            fi
+        done
+        
+        if [ $valid_keys -eq ${#RENDIFF_KEYS[@]} ]; then
+            echo -e "${GREEN}✓${NC} All Rendiff API keys have valid format"
+        fi
+    fi
+else
+    echo -e "${YELLOW}⚠${NC}  Warning: No Rendiff API keys configured"
+    echo -e "${YELLOW}⚠${NC}  API authentication may not work properly"
+    ((WARNINGS++))
+fi
+
+echo ""
+echo "6. Checking Monitoring Configuration"
 echo "------------------------------------"
 check_env "GRAFANA_PASSWORD" "secure"
 check_not_default "GRAFANA_PASSWORD" "admin"
@@ -134,7 +167,7 @@ check_not_default "GRAFANA_PASSWORD" "changeme"
 check_not_default "GRAFANA_PASSWORD" "your_grafana_password_here"
 
 echo ""
-echo "6. Checking API Configuration"
+echo "7. Checking API Configuration"
 echo "-----------------------------"
 if [ "$ENABLE_API_KEYS" != "true" ]; then
     echo -e "${RED}✗${NC} API key authentication is disabled"
@@ -151,7 +184,7 @@ else
 fi
 
 echo ""
-echo "7. Checking Storage Configuration"
+echo "8. Checking Storage Configuration"
 echo "---------------------------------"
 if [ -f "config/storage.yml" ]; then
     if grep -q "your-bucket-name" config/storage.yml 2>/dev/null; then
@@ -163,7 +196,7 @@ if [ -f "config/storage.yml" ]; then
 fi
 
 echo ""
-echo "8. Checking Docker Configuration"
+echo "9. Checking Docker Configuration"
 echo "--------------------------------"
 if docker compose config > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Docker Compose configuration is valid"
@@ -173,8 +206,8 @@ else
 fi
 
 echo ""
-echo "9. Checking Network Security"
-echo "----------------------------"
+echo "10. Checking Network Security"
+echo "-----------------------------"
 if [ "$ENABLE_IP_WHITELIST" = "true" ]; then
     echo -e "${GREEN}✓${NC} IP whitelisting is enabled"
     if [ -n "$IP_WHITELIST" ]; then
@@ -189,7 +222,7 @@ else
 fi
 
 echo ""
-echo "10. Checking CORS Configuration"
+echo "11. Checking CORS Configuration"
 echo "-------------------------------"
 if [ "$CORS_ORIGINS" = "*" ]; then
     echo -e "${YELLOW}⚠${NC}  Warning: CORS allows all origins (*)"

@@ -1,59 +1,36 @@
-# Build stage
-FROM python:3.14-rc-alpine3.20 AS builder
+# Setup Container for FFmpeg API
+# This container runs the interactive setup wizard
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+FROM alpine:3.18
 
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Runtime stage
-FROM python:3.14-rc-alpine3.20
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Install required packages
+RUN apk add --no-cache \
+    bash \
+    openssl \
     curl \
-    docker.io \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/cache/apk/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Create app user
-RUN useradd -m -u 1000 -s /bin/bash rendiff
-
-# Create directories
-RUN mkdir -p /app /etc/rendiff /setup && \
-    chown -R rendiff:rendiff /app /etc/rendiff /setup
-
-# Set working directory
+# Create app directory
 WORKDIR /app
 
-# Copy application code
-COPY --chown=rendiff:rendiff setup/ /app/setup/
-COPY --chown=rendiff:rendiff api/ /app/api/
-COPY --chown=rendiff:rendiff config/ /app/config/
+# Copy setup scripts
+COPY scripts/interactive-setup.sh /app/scripts/interactive-setup.sh
+COPY docker/setup/docker-entrypoint.sh /app/docker-entrypoint.sh
+
+# Copy configuration templates
+COPY config/ /app/config/
+
+# Make scripts executable
+RUN chmod +x /app/scripts/interactive-setup.sh \
+    && chmod +x /app/docker-entrypoint.sh
+
+# Set up non-root user for security
+RUN addgroup -g 1000 setup && \
+    adduser -u 1000 -G setup -s /bin/bash -D setup
 
 # Switch to non-root user
-USER rendiff
+USER setup
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import setup.wizard; print('Setup wizard available')" || exit 1
-
-# Run the setup wizard
-CMD ["python", "-m", "setup.wizard"]
+# Set the entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

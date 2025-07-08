@@ -1,4 +1,4 @@
-#\!/bin/bash
+#!/bin/bash
 # Comprehensive health check for FFmpeg API services
 
 set -e

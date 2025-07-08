@@ -3,5 +3,48 @@ __pycache__/
 .env
 .DS_Store
 /tmp
+
+# Database files
 *.db
+*.db-shm
+*.db-wal
 /data/
+
+# Backup files
+*.backup*
+*.bak
+*~
+.env_backups/
+
+# Log files
+*.log
+/logs/
+
+# Temporary files
+.tmp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Generated documentation and reports
+CLEANUP_SUMMARY.md
+*REPORT*.md
+*AUDIT*.md
+*STATUS*.md
+*SUMMARY*.md
+*ANALYSIS*.md
+*_REPORT.md
+*_AUDIT.md
+*_STATUS.md
+
+# Storage and uploads
+/storage/
+/uploads/
