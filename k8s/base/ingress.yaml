@@ -1,0 +1,103 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ffmpeg-api-ingress
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: ingress
+  annotations:
+    # AWS Load Balancer Controller annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    
+    # SSL and security
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: "${CERTIFICATE_ARN}"
+    
+    # Security headers
+    alb.ingress.kubernetes.io/load-balancer-attributes: routing.http2.enabled=true,idle_timeout.timeout_seconds=60
+    
+    # Rate limiting and protection
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # Client body size for file uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+spec:
+  rules:
+  - host: api.ffmpeg.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ffmpeg-api-service
+            port:
+              number: 8000
+  - host: "*.ffmpeg.example.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ffmpeg-api-service
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - api.ffmpeg.example.com
+    - "*.ffmpeg.example.com"
+    secretName: ffmpeg-api-tls
+---
+# Internal ingress for metrics and monitoring
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ffmpeg-api-metrics-ingress
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: metrics-ingress
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /metrics
+    # Restrict access to monitoring subnet
+    alb.ingress.kubernetes.io/inbound-cidrs: "10.0.0.0/16"
+spec:
+  rules:
+  - host: metrics.ffmpeg.internal
+    http:
+      paths:
+      - path: /api/metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: ffmpeg-api-service
+            port:
+              number: 9000
+      - path: /worker/metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: ffmpeg-worker-service
+            port:
+              number: 9000

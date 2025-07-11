@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ffmpeg-api-config
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: config
+data:
+  # Application configuration
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "4"
+  
+  # Worker Configuration
+  WORKER_CONCURRENCY: "4"
+  WORKER_LOG_LEVEL: "INFO"
+  MAX_CONCURRENT_JOBS: "10"
+  
+  # Cache Configuration
+  CACHE_TTL: "3600"
+  CACHE_TYPE: "redis"
+  
+  # Monitoring Configuration
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9000"
+  
+  # Processing Configuration
+  FFMPEG_PATH: "/usr/bin/ffmpeg"
+  TEMP_DIR: "/tmp"
+  MAX_FILE_SIZE: "1073741824"  # 1GB
+  
+  # Queue Configuration
+  QUEUE_DEFAULT: "default"
+  QUEUE_HIGH_PRIORITY: "high"
+  QUEUE_LOW_PRIORITY: "low"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: redis-config
+data:
+  redis.conf: |
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    save 900 1
+    save 300 10
+    save 60 10000
+    rdbcompression yes
+    rdbchecksum yes
+    tcp-keepalive 300
+    timeout 0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: nginx-config
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        upstream api {
+            server ffmpeg-api-service:8000;
+        }
+        
+        server {
+            listen 80;
+            client_max_body_size 1G;
+            
+            location / {
+                proxy_pass http://api;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_timeout 300s;
+                proxy_read_timeout 300s;
+                proxy_send_timeout 300s;
+            }
+            
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+            }
+        }
+    }

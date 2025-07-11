@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable
 import structlog
 
+from worker.base import BaseProcessor, ProcessingError
 from worker.utils.ffmpeg import FFmpegWrapper, FFmpegError
 from worker.utils.progress import ProgressTracker
 
 logger = structlog.get_logger()
 
 
-class VideoProcessingError(Exception):
+class VideoProcessingError(ProcessingError):
     """Base exception for video processing errors."""
     pass
 
@@ -34,12 +35,12 @@ class ProcessingTimeoutError(VideoProcessingError):
     pass
 
 
-class VideoProcessor:
+class VideoProcessor(BaseProcessor):
     """Handles video processing operations with FFmpeg."""
     
     def __init__(self):
+        super().__init__()
         self.ffmpeg = FFmpegWrapper()
-        self.initialized = False
         self.supported_input_formats = {
             'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm', 'm4v', 
             '3gp', 'ts', 'mts', 'm2ts', 'vob', 'mpg', 'mpeg', 'ogv'
@@ -47,13 +48,66 @@ class VideoProcessor:
         self.supported_output_formats = {
             'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'm4v', 'ts', 'mpg'
         }
+    
+    def get_supported_formats(self) -> Dict[str, list]:
+        """Get supported input and output formats."""
+        return {
+            "input": list(self.supported_input_formats),
+            "output": list(self.supported_output_formats)
+        }
         
     async def initialize(self):
         """Initialize the video processor."""
         if not self.initialized:
             await self.ffmpeg.initialize()
             self.initialized = True
-            logger.info("VideoProcessor initialized")
+            self.logger.info("VideoProcessor initialized")
+    
+    async def get_video_info(self, input_path: str) -> Dict[str, Any]:
+        """Get video file information."""
+        try:
+            return await self.ffmpeg.probe_file(input_path)
+        except FFmpegError as e:
+            raise VideoProcessingError(f"Failed to get video info: {e}")
+    
+    async def validate_input(self, input_path: str) -> bool:
+        """Validate input file - override base method."""
+        await super().validate_input(input_path)  # Basic validation
+        
+        # Check file extension
+        file_ext = Path(input_path).suffix.lower().lstrip('.')
+        if file_ext not in self.supported_input_formats:
+            raise UnsupportedFormatError(f"Unsupported input format: {file_ext}")
+        
+        # Probe file to ensure it's valid
+        try:
+            probe_info = await self.ffmpeg.probe_file(input_path)
+            
+            # Check if file has video stream
+            video_streams = [s for s in probe_info.get('streams', []) 
+                           if s.get('codec_type') == 'video']
+            if not video_streams:
+                raise InvalidInputError(f"No video stream found in: {input_path}")
+            
+            # Check if video stream is readable
+            video_stream = video_streams[0]
+            if video_stream.get('disposition', {}).get('attached_pic'):
+                raise InvalidInputError(f"File contains only cover art: {input_path}")
+                
+        except FFmpegError as e:
+            raise InvalidInputError(f"Invalid or corrupted video file: {e}")
+        
+        return True
+    
+    async def validate_output(self, output_path: str) -> bool:
+        """Validate output path - override base method."""
+        await super().validate_output(output_path)  # Basic validation
+        
+        file_ext = Path(output_path).suffix.lower().lstrip('.')
+        if file_ext not in self.supported_output_formats:
+            raise UnsupportedFormatError(f"Unsupported output format: {file_ext}")
+        
+        return True
     
     async def process(self, input_path: str, output_path: str, 
                      options: Dict[str, Any], operations: List[Dict[str, Any]],
@@ -75,14 +129,14 @@ class VideoProcessor:
             await self.initialize()
             
             # Validate input file
-            await self._validate_input(input_path)
+            await self.validate_input(input_path)
             
             # Validate operations
             if not self.ffmpeg.validate_operations(operations):
                 raise VideoProcessingError("Invalid operations provided")
             
             # Validate output format
-            await self._validate_output_format(output_path, options)
+            await self.validate_output(output_path)
             
             # Create output directory if needed
             output_dir = Path(output_path).parent

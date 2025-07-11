@@ -1,0 +1,224 @@
+# Backup Configuration for Rendiff FFmpeg API
+# This file contains backup settings and policies
+
+# Backup schedule configuration
+schedule:
+  # Cron expression for automated backups
+  # Default: Daily at 2 AM
+  cron: "0 2 * * *"
+  
+  # Timezone for backup scheduling
+  timezone: "UTC"
+  
+  # Enable/disable scheduled backups
+  enabled: true
+
+# Retention policies
+retention:
+  # Number of days to keep daily backups
+  daily_retention: 30
+  
+  # Number of weeks to keep weekly backups (kept every Sunday)
+  weekly_retention: 12
+  
+  # Number of months to keep monthly backups (kept on 1st of month)
+  monthly_retention: 12
+  
+  # Cleanup old backups automatically
+  auto_cleanup: true
+
+# Backup options
+options:
+  # Enable backup compression
+  compression: true
+  
+  # Enable backup verification after creation
+  verification: true
+  
+  # Create pre-restore backup before any restore operation
+  pre_restore_backup: true
+  
+  # Include backup metadata (checksums, timestamps, etc.)
+  include_metadata: true
+
+# Storage configuration
+storage:
+  # Local backup directory (relative to project root)
+  local_path: "./backups"
+  
+  # Cloud storage backup (optional)
+  cloud:
+    enabled: false
+    provider: "s3"  # s3, azure, gcp
+    bucket: ""
+    region: ""
+    access_key: ""
+    secret_key: ""
+    encryption: true
+
+# Notification settings
+notifications:
+  # Enable notifications for backup events
+  enabled: false
+  
+  # Notification methods
+  methods:
+    email:
+      enabled: false
+      recipients: []
+      smtp_host: ""
+      smtp_port: 587
+      username: ""
+      password: ""
+      
+    webhook:
+      enabled: false
+      url: ""
+      auth_header: ""
+      
+    slack:
+      enabled: false
+      webhook_url: ""
+      channel: "#ops"
+
+# Database-specific settings
+database:
+  sqlite:
+    # Use SQLite VACUUM before backup to optimize file size
+    vacuum_before_backup: true
+    
+    # Use .backup command instead of file copy
+    use_backup_command: true
+    
+  postgresql:
+    # pg_dump format: custom, plain, directory, tar
+    format: "custom"
+    
+    # Compression level (0-9)
+    compression: 9
+    
+    # Include large objects
+    include_blobs: true
+    
+    # Additional pg_dump options
+    extra_options: ["--verbose", "--no-owner", "--no-privileges"]
+
+# Monitoring and alerting
+monitoring:
+  # Monitor backup job duration
+  max_duration_minutes: 60
+  
+  # Monitor backup file size changes
+  size_change_threshold: 0.5  # Alert if size changes by more than 50%
+  
+  # Health check endpoint for backup status
+  health_check:
+    enabled: true
+    endpoint: "/api/v1/health/backup"
+    
+# Security settings
+security:
+  # Encrypt backups at rest
+  encryption:
+    enabled: false
+    method: "aes256"  # aes256, gpg
+    key_file: ""
+    
+  # File permissions for backup files
+  file_permissions: "600"
+  
+  # Directory permissions for backup directories
+  directory_permissions: "700"
+
+# Performance settings
+performance:
+  # Maximum number of concurrent backup operations
+  max_concurrent_backups: 1
+  
+  # I/O priority for backup operations (low, normal, high)
+  io_priority: "low"
+  
+  # Nice level for backup processes (-20 to 19)
+  nice_level: 10
+
+# Disaster recovery settings
+disaster_recovery:
+  # Test restore frequency (in days)
+  test_restore_interval: 30
+  
+  # Automated disaster recovery test
+  auto_test_restore: false
+  
+  # Recovery time objective (RTO) in minutes
+  rto_minutes: 60
+  
+  # Recovery point objective (RPO) in minutes
+  rpo_minutes: 1440  # 24 hours
+
+# Logging configuration
+logging:
+  # Log level for backup operations
+  level: "INFO"  # DEBUG, INFO, WARN, ERROR
+  
+  # Log file path
+  file: "./backups/backup.log"
+  
+  # Log rotation
+  rotation:
+    enabled: true
+    max_size_mb: 100
+    max_files: 10
+    
+  # Structured logging format
+  format: "json"  # json, text
+
+# Integration settings
+integrations:
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    metrics_port: 9090
+    metrics_path: "/backup-metrics"
+    
+  # Grafana dashboard
+  grafana:
+    enabled: false
+    dashboard_id: ""
+    
+  # External backup validation service
+  validation_service:
+    enabled: false
+    endpoint: ""
+    api_key: ""
+
+# Environment-specific overrides
+environments:
+  development:
+    retention:
+      daily_retention: 7
+    options:
+      compression: false
+      verification: false
+    notifications:
+      enabled: false
+      
+  production:
+    retention:
+      daily_retention: 30
+      weekly_retention: 12
+      monthly_retention: 12
+    options:
+      compression: true
+      verification: true
+    notifications:
+      enabled: true
+    security:
+      encryption:
+        enabled: true
+        
+  staging:
+    retention:
+      daily_retention: 14
+    options:
+      compression: true
+      verification: true

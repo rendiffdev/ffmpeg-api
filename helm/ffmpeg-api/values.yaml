@@ -1,0 +1,383 @@
+# Default values for ffmpeg-api Helm chart
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Application configuration
+app:
+  name: ffmpeg-api
+  version: "1.0.0"
+  
+# Image configuration
+image:
+  registry: docker.io
+  repository: ffmpeg-api
+  tag: "latest"
+  pullPolicy: Always
+  pullSecrets: []
+
+# API deployment configuration
+api:
+  enabled: true
+  name: api
+  replicaCount: 3
+  
+  image:
+    repository: ffmpeg-api
+    tag: "latest"
+    pullPolicy: Always
+  
+  ports:
+    http: 8000
+    metrics: 9000
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+  
+  # Node selection
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Worker deployment configuration
+worker:
+  enabled: true
+  name: worker
+  
+  cpu:
+    enabled: true
+    replicaCount: 2
+    
+    image:
+      repository: ffmpeg-api
+      tag: "latest"
+      pullPolicy: Always
+    
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 50
+      targetCPUUtilizationPercentage: 80
+      targetMemoryUtilizationPercentage: 85
+    
+    nodeSelector:
+      role: worker
+    
+    tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "processing"
+      effect: "NoSchedule"
+  
+  gpu:
+    enabled: false
+    replicaCount: 0
+    
+    image:
+      repository: ffmpeg-api-gpu
+      tag: "latest"
+      pullPolicy: Always
+    
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+        nvidia.com/gpu: 1
+      limits:
+        memory: "8Gi"
+        cpu: "4000m"
+        nvidia.com/gpu: 1
+    
+    nodeSelector:
+      role: gpu-worker
+      node.kubernetes.io/accelerator: nvidia-tesla-t4
+    
+    tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "gpu-processing"
+      effect: "NoSchedule"
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+# Service configuration
+service:
+  api:
+    type: ClusterIP
+    port: 8000
+    targetPort: http
+    annotations: {}
+  
+  worker:
+    type: ClusterIP
+    port: 9000
+    targetPort: metrics
+    annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "alb"
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+  
+  hosts:
+  - host: api.ffmpeg.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+      backend:
+        service:
+          name: api
+          port:
+            number: 8000
+  
+  tls:
+  - secretName: ffmpeg-api-tls
+    hosts:
+    - api.ffmpeg.example.com
+
+# Configuration
+config:
+  # Application settings
+  environment: "production"
+  logLevel: "INFO"
+  apiHost: "0.0.0.0"
+  apiPort: "8000"
+  apiWorkers: "4"
+  
+  # Worker settings
+  workerConcurrency: "4"
+  workerLogLevel: "INFO"
+  maxConcurrentJobs: "10"
+  
+  # Processing settings
+  ffmpegPath: "/usr/bin/ffmpeg"
+  tempDir: "/tmp"
+  maxFileSize: "1073741824"  # 1GB
+  
+  # Cache settings
+  cacheTtl: "3600"
+  cacheType: "redis"
+  
+  # Monitoring
+  enableMetrics: "true"
+  metricsPort: "9000"
+  
+  # Queue settings
+  queueDefault: "default"
+  queueHighPriority: "high"
+  queueLowPriority: "low"
+
+# Secrets configuration
+secrets:
+  # Database secrets
+  database:
+    url: ""
+    password: ""
+  
+  # Redis secrets
+  redis:
+    url: ""
+    password: ""
+  
+  # Storage secrets
+  storage:
+    s3BucketName: ""
+    awsAccessKeyId: ""
+    awsSecretAccessKey: ""
+  
+  # Application secrets
+  app:
+    secretKey: ""
+    jwtSecret: ""
+  
+  # External services
+  external:
+    webhookSecret: ""
+
+# External secret management
+externalSecrets:
+  enabled: false
+  secretStore:
+    provider: aws
+    region: us-west-2
+    roleArn: ""
+  
+  secrets:
+  - name: database
+    key: ffmpeg-api/prod/database
+    properties:
+    - property: url
+      secretKey: DATABASE_URL
+  - name: redis
+    key: ffmpeg-api/prod/redis
+    properties:
+    - property: url
+      secretKey: REDIS_URL
+
+# Persistence
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 50Gi
+  storageClass: ""
+  annotations: {}
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""
+
+# Network Policy
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# Redis (subchart)
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+  replica:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# PostgreSQL (subchart) 
+postgresql:
+  enabled: false  # Use external RDS in production
+  auth:
+    database: ffmpeg_api
+    username: ffmpeg_user
+    password: changeme
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+# Monitoring
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      path: /metrics
+      labels: {}
+  
+  grafana:
+    enabled: true
+    adminPassword: changeme
+    persistence:
+      enabled: true
+      size: 5Gi
+    
+    dashboards:
+      enabled: true
+      configMapName: ffmpeg-api-dashboards
+  
+  alerts:
+    enabled: true
+    rules:
+    - name: ffmpeg-api-alerts
+      rules:
+      - alert: APIDown
+        expr: up{job="ffmpeg-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FFmpeg API is down"
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+
+# Tests
+tests:
+  enabled: true
+  image:
+    repository: busybox
+    tag: latest

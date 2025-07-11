@@ -1,0 +1,168 @@
+# Cache Configuration for Rendiff FFmpeg API
+# Defines caching strategies, TTLs, and invalidation rules
+
+# Redis Configuration
+redis:
+  # Connection settings
+  host: ${REDIS_HOST:-localhost}
+  port: ${REDIS_PORT:-6379}
+  db: ${REDIS_DB:-0}
+  password: ${REDIS_PASSWORD:-}
+  
+  # Connection pool settings
+  max_connections: 20
+  socket_timeout: 5
+  socket_connect_timeout: 5
+  retry_on_timeout: true
+  health_check_interval: 30
+  
+  # Memory and eviction settings
+  max_memory: 1gb
+  eviction_policy: allkeys-lru
+
+# Cache TTL Configuration (in seconds)
+ttl:
+  # Job-related caching
+  job_status: 30           # Individual job status lookups
+  job_list: 60             # Job listing results
+  job_details: 120         # Detailed job information
+  job_logs: 300            # Job processing logs
+  
+  # Authentication and authorization
+  api_key: 300             # API key validation results
+  user_session: 1800       # User session data
+  
+  # Configuration caching
+  storage_config: 3600     # Storage backend configurations
+  ffmpeg_presets: 7200     # FFmpeg parameter presets
+  system_config: 3600      # System configuration
+  
+  # Analysis and computation results
+  video_analysis: 86400    # Video analysis results (24 hours)
+  quality_metrics: 43200   # Quality assessment results (12 hours)
+  complexity_analysis: 86400  # Video complexity analysis
+  scene_detection: 86400   # Scene detection results
+  
+  # Rate limiting
+  rate_limit: 3600         # Rate limiting windows
+  
+  # Default fallback
+  default: 300
+
+# Cache Key Patterns
+key_patterns:
+  job: "job:{job_id}"
+  job_list: "jobs:{api_key}:{filter_hash}"
+  api_key: "auth:api_key:{key_hash}"
+  storage: "storage:config:{backend_name}"
+  analysis: "analysis:{type}:{file_hash}"
+  rate_limit: "ratelimit:{identifier}:{window}"
+
+# Cache Invalidation Rules
+invalidation:
+  # Job status changes invalidate related caches
+  job_status_change:
+    - "job:{job_id}"
+    - "jobs:*"  # All job listings
+  
+  # Job completion invalidates analysis caches
+  job_completion:
+    - "job:{job_id}"
+    - "jobs:*"
+    - "analysis:*:{job_id}"
+  
+  # Storage configuration changes
+  storage_config_change:
+    - "storage:config:*"
+    - "storage:status:*"
+  
+  # API key changes
+  api_key_change:
+    - "auth:api_key:*"
+    - "user:session:*"
+
+# Performance Tuning
+performance:
+  # Fallback cache settings when Redis is unavailable
+  fallback:
+    max_size: 1000
+    cleanup_interval: 300
+    
+  # Batch operations
+  batch_size: 100
+  pipeline_threshold: 10
+  
+  # Monitoring and statistics
+  stats_interval: 60
+  slow_query_threshold: 100  # milliseconds
+
+# Cache Warming Strategy
+warming:
+  # Enable cache warming on startup
+  enabled: true
+  
+  # Items to pre-warm
+  strategies:
+    - name: "popular_jobs"
+      target: "recent_jobs"
+      limit: 50
+      ttl_override: 300
+    
+    - name: "storage_configs"
+      target: "all_storage_backends"
+      ttl_override: 3600
+    
+    - name: "system_health"
+      target: "health_endpoints"
+      interval: 30
+
+# Cache Monitoring and Alerting
+monitoring:
+  # Enable detailed metrics collection
+  enabled: true
+  
+  # Metrics to track
+  metrics:
+    - hit_rate
+    - miss_rate
+    - error_rate
+    - memory_usage
+    - connection_count
+    - operation_latency
+  
+  # Alert thresholds
+  alerts:
+    hit_rate_low: 70        # Alert if hit rate below 70%
+    error_rate_high: 5      # Alert if error rate above 5%
+    memory_usage_high: 80   # Alert if memory usage above 80%
+    connection_failures: 3  # Alert after 3 connection failures
+
+# Development and Testing
+development:
+  # Skip caching in development
+  skip_cache: false
+  
+  # Shorter TTLs for testing
+  short_ttls:
+    job_status: 5
+    api_key: 10
+    default: 15
+  
+  # Debug logging
+  debug_cache_operations: false
+  log_cache_keys: false
+
+# Production Optimizations
+production:
+  # Enable all optimizations
+  enable_compression: true
+  enable_pipeline: true
+  enable_clustering: false
+  
+  # Background cleanup
+  cleanup_interval: 3600
+  expired_key_cleanup: true
+  
+  # Security
+  encrypt_sensitive_data: true
+  secure_connection: true

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ffmpeg-api
+  labels:
+    name: ffmpeg-api
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: namespace
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ffmpeg-api-monitoring
+  labels:
+    name: ffmpeg-api-monitoring
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: monitoring
