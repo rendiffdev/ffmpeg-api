@@ -12,6 +12,10 @@ from api.config import settings
 from api.models.job import Base
 from api.utils.database import set_sqlite_pragma
 
+# Import all models to ensure they're registered with Base
+from api.models.job import Job
+from api.models.api_key import ApiKey
+
 # Configure engine based on database type
 if "sqlite" in settings.database_url_async:
     # SQLite specific configuration

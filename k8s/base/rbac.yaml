@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ffmpeg-api-sa
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: serviceaccount
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ffmpeg-api-${ENVIRONMENT}-application-role"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ffmpeg-api-role
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ffmpeg-api-rolebinding
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: rolebinding
+subjects:
+- kind: ServiceAccount
+  name: ffmpeg-api-sa
+  namespace: ffmpeg-api
+roleRef:
+  kind: Role
+  name: ffmpeg-api-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRole for HPA and metrics access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ffmpeg-api-cluster-role
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: cluster-role
+rules:
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ffmpeg-api-cluster-rolebinding
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: cluster-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: ffmpeg-api-sa
+  namespace: ffmpeg-api
+roleRef:
+  kind: ClusterRole
+  name: ffmpeg-api-cluster-role
+  apiGroup: rbac.authorization.k8s.io

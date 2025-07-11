@@ -1,0 +1,39 @@
+# Coverage configuration for Rendiff FFmpeg API
+
+[run]
+source = api, worker, storage
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */migrations/*
+    */venv/*
+    */env/*
+    setup.py
+    conftest.py
+    */alembic/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+    @abstractmethod
+
+precision = 2
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+title = Rendiff FFmpeg API Coverage Report
+
+[xml]
+output = coverage.xml

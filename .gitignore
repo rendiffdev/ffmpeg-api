@@ -38,12 +38,14 @@ Thumbs.db
 CLEANUP_SUMMARY.md
 *REPORT*.md
 *AUDIT*.md
-*STATUS*.md
 *SUMMARY*.md
 *ANALYSIS*.md
 *_REPORT.md
 *_AUDIT.md
-*_STATUS.md
+
+# Keep STATUS.md in root but ignore generated ones
+/*STATUS*.md
+!STATUS.md
 
 # Storage and uploads
 /storage/
@@ -61,6 +63,12 @@ traefik/acme/
 test-results/
 monitoring/ssl-scan-results/
 monitoring/*.log
+
+# Python testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
 # Backups
 backups/

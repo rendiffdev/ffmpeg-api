@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ffmpeg-worker
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ffmpeg-api
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ffmpeg-api
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ffmpeg-api-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: worker
+        image: ffmpeg-api:latest
+        imagePullPolicy: Always
+        command: ["python", "-m", "worker.main"]
+        ports:
+        - name: metrics
+          containerPort: 9000
+          protocol: TCP
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        - name: WORKER_TYPE
+          value: "cpu"
+        envFrom:
+        - configMapRef:
+            name: ffmpeg-api-config
+        - secretRef:
+            name: ffmpeg-api-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: processing
+          mountPath: /app/processing
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: processing
+        emptyDir:
+          sizeLimit: 50Gi
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node.kubernetes.io/instance-type: "c5.large"
+      tolerations:
+      - key: "workload"
+        operator: "Equal"
+        value: "processing"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ffmpeg-gpu-worker
+  namespace: ffmpeg-api
+  labels:
+    app.kubernetes.io/name: ffmpeg-api
+    app.kubernetes.io/component: gpu-worker
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 0  # Scale based on demand
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ffmpeg-api
+      app.kubernetes.io/component: gpu-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ffmpeg-api
+        app.kubernetes.io/component: gpu-worker
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ffmpeg-api-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: gpu-worker
+        image: ffmpeg-api-gpu:latest
+        imagePullPolicy: Always
+        command: ["python", "-m", "worker.main"]
+        ports:
+        - name: metrics
+          containerPort: 9000
+          protocol: TCP
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        - name: WORKER_TYPE
+          value: "gpu"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        envFrom:
+        - configMapRef:
+            name: ffmpeg-api-config
+        - secretRef:
+            name: ffmpeg-api-secrets
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: processing
+          mountPath: /app/processing
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: processing
+        emptyDir:
+          sizeLimit: 100Gi
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node.kubernetes.io/accelerator: nvidia-tesla-t4
+      tolerations:
+      - key: "workload"
+        operator: "Equal"
+        value: "gpu-processing"
+        effect: "NoSchedule"
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - gpu-worker
