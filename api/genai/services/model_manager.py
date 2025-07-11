@@ -251,13 +251,39 @@ class ModelManager:
             raise ImportError(f"VideoMAE dependencies not installed: {e}")
     
     async def _load_vmaf_model(self, model_name: str, **kwargs) -> Any:
-        """Load VMAF model."""
+        """Load VMAF model configuration."""
         try:
             import ffmpeg
+            import os
             
-            # VMAF is handled by FFmpeg, so we just return a placeholder
-            # The actual VMAF computation will be done in the quality predictor
-            return {"model_version": model_name, "available": True}
+            # VMAF models are handled by FFmpeg, not loaded into memory
+            # We validate the model exists and return configuration
+            vmaf_models = {
+                "vmaf_v0.6.1": {"version": "v0.6.1", "path": "/usr/local/share/model/vmaf_v0.6.1.json"},
+                "vmaf_4k_v0.6.1": {"version": "v0.6.1_4k", "path": "/usr/local/share/model/vmaf_4k_v0.6.1.json"},
+                "vmaf_v0.6.0": {"version": "v0.6.0", "path": "/usr/local/share/model/vmaf_v0.6.0.json"},
+            }
+            
+            model_config = vmaf_models.get(model_name)
+            if not model_config:
+                raise ValueError(f"Unknown VMAF model: {model_name}")
+            
+            # Check if model file exists (optional, FFmpeg will handle missing models)
+            model_available = True
+            if model_config["path"] and os.path.exists(model_config["path"]):
+                model_available = True
+            elif model_config["path"]:
+                # Model file not found, but FFmpeg might have it in different location
+                logger.warning(f"VMAF model file not found at {model_config['path']}, will use FFmpeg default")
+            
+            return {
+                "model_name": model_name,
+                "version": model_config["version"],
+                "path": model_config["path"],
+                "available": model_available,
+                "type": "vmaf",
+                "description": f"VMAF quality assessment model {model_config['version']}",
+            }
             
         except ImportError as e:
             raise ImportError(f"FFmpeg-python not installed: {e}")
