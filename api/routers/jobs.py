@@ -324,17 +324,33 @@ async def get_job_logs(
         # Get live logs from worker
         logs = await queue_service.get_worker_logs(job.worker_id, str(job_id), lines)
     else:
-        # Get stored logs
-        # This is a placeholder - implement actual log storage
-        logs = [
-            f"Job {job_id} - Status: {job.status}",
-            f"Created: {job.created_at}",
-            f"Started: {job.started_at}",
-            f"Completed: {job.completed_at}",
-        ]
+        # Get stored logs from database and log aggregation system
+        from api.services.job_service import JobService
         
-        if job.error_message:
-            logs.append(f"Error: {job.error_message}")
+        stored_logs = await JobService.get_job_logs(db, job_id, lines)
+        
+        if stored_logs:
+            logs = stored_logs
+        else:
+            # Fallback to basic job information if no detailed logs available
+            logs = [
+                f"[{job.created_at.isoformat()}] Job created: {job_id}",
+                f"[{job.created_at.isoformat()}] Status: {job.status.value}",
+                f"[{job.created_at.isoformat()}] Input: {job.input_url or 'N/A'}",
+                f"[{job.created_at.isoformat()}] Output: {job.output_url or 'N/A'}",
+            ]
+            
+            if job.started_at:
+                logs.append(f"[{job.started_at.isoformat()}] Processing started")
+            
+            if job.completed_at:
+                logs.append(f"[{job.completed_at.isoformat()}] Processing completed")
+            
+            if job.error_message:
+                logs.append(f"[{(job.completed_at or job.started_at or job.created_at).isoformat()}] ERROR: {job.error_message}")
+            
+            if job.progress > 0:
+                logs.append(f"[{(job.completed_at or job.started_at or job.created_at).isoformat()}] Progress: {job.progress}%")
     
     return {
         "job_id": str(job_id),
