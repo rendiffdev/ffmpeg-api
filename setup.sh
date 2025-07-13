@@ -62,25 +62,91 @@ For detailed documentation, see: docs/SETUP.md
 EOF
 }
 
+# Install Docker
+install_docker() {
+    print_info "Installing Docker and Docker Compose..."
+    
+    # Update package index
+    sudo apt-get update
+    
+    # Install required packages
+    sudo apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    
+    # Add Docker's official GPG key
+    sudo mkdir -m 0755 -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Set up the repository
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Update package index with Docker packages
+    sudo apt-get update
+    
+    # Install Docker Engine and Docker Compose
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Add current user to docker group
+    sudo usermod -aG docker $USER
+    
+    print_success "Docker and Docker Compose installed successfully!"
+    print_warning "Please log out and log back in for group changes to take effect."
+    print_info "Or run: newgrp docker"
+}
+
 # Check prerequisites
 check_prerequisites() {
     print_info "Checking prerequisites..."
     
     # Check Docker
     if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed. Please install Docker Desktop."
-        exit 1
+        print_warning "Docker is not installed."
+        echo -n "Would you like to install Docker and Docker Compose automatically? (y/N): "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            install_docker
+            print_info "Please restart your terminal session and run the script again."
+            exit 0
+        else
+            print_error "Docker is required. Please install Docker Desktop manually."
+            exit 1
+        fi
     fi
     
     # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose is not installed. Please install Docker Compose."
-        exit 1
+    if ! command -v docker compose &> /dev/null; then
+        print_warning "Docker Compose is not installed."
+        echo -n "Would you like to install Docker Compose automatically? (y/N): "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            # Install Docker Compose plugin
+            sudo apt-get update
+            sudo apt-get install -y docker-compose-plugin
+            print_success "Docker Compose installed successfully!"
+        else
+            print_error "Docker Compose is required. Please install Docker Compose manually."
+            exit 1
+        fi
     fi
     
     # Check Git (optional but recommended)
     if ! command -v git &> /dev/null; then
         print_warning "Git is not installed. Some features may not work optimally."
+        echo -n "Would you like to install Git? (y/N): "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            print_info "Installing Git..."
+            sudo apt-get update
+            sudo apt-get install -y git
+            print_success "Git installed successfully!"
+        else
+            print_info "Continuing without Git. Some features may be limited."
+        fi
     fi
     
     print_success "Prerequisites check completed"
@@ -108,7 +174,7 @@ EOF
     print_info "Starting development services..."
     
     # Start development services
-    docker-compose up -d
+    docker compose up -d
     
     print_success "Development environment is running!"
     echo ""
@@ -154,7 +220,7 @@ EOF
     print_info "Starting production services..."
     
     # Start production services with HTTPS by default
-    docker-compose -f docker-compose.prod.yml up -d
+    docker compose -f docker compose.prod.yml up -d
     
     print_success "Standard production environment is running!"
     show_access_info
@@ -189,10 +255,10 @@ GPU_WORKERS=1
 EOF
     
     print_info "Downloading AI models..."
-    docker-compose -f docker-compose.yml -f docker-compose.genai.yml --profile setup run --rm model-downloader
+    docker compose -f docker compose.yml -f docker compose.genai.yml --profile setup run --rm model-downloader
     
     print_info "Starting GenAI services..."
-    docker-compose -f docker-compose.yml -f docker-compose.genai.yml up -d
+    docker compose -f docker compose.yml -f docker compose.genai.yml up -d
     
     print_success "GenAI environment is running!"
     show_access_info
@@ -244,7 +310,7 @@ setup_standard_https() {
     ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
     print_info "Restarting services with Let's Encrypt..."
-    docker-compose -f docker-compose.prod.yml restart traefik
+    docker compose -f docker compose.prod.yml restart traefik
     
     print_success "HTTPS environment with Let's Encrypt is running!"
 }
@@ -266,8 +332,8 @@ setup_genai_https() {
     ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
     print_info "Restarting services with Let's Encrypt..."
-    docker-compose -f docker-compose.yml -f docker-compose.genai.yml down
-    docker-compose -f docker-compose.prod.yml --profile genai up -d
+    docker compose -f docker compose.yml -f docker compose.genai.yml down
+    docker compose -f docker compose.prod.yml --profile genai up -d
     
     print_success "GenAI + HTTPS environment with Let's Encrypt is running!"
 }
@@ -287,7 +353,7 @@ show_access_info() {
     print_info "Management Commands:"
     print_info "• Check status: ${CYAN}./setup.sh --status${NC}"
     print_info "• Validate: ${CYAN}./setup.sh --validate${NC}"
-    print_info "• View logs: ${CYAN}docker-compose logs -f${NC}"
+    print_info "• View logs: ${CYAN}docker compose logs -f${NC}"
     echo ""
 }
 
@@ -300,7 +366,7 @@ validate_deployment() {
 # Show deployment status
 show_status() {
     print_info "Deployment Status:"
-    docker-compose ps
+    docker compose ps
     
     echo ""
     print_info "Service Health:"
