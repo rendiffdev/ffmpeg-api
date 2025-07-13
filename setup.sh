@@ -66,6 +66,18 @@ EOF
 install_docker() {
     print_info "Installing Docker and Docker Compose..."
     
+    # Detect operating system
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
+            print_error "Unsupported operating system: $ID. This script supports only Ubuntu/Debian-based systems."
+            exit 1
+        fi
+    else
+        print_error "Unable to detect operating system. This script supports only Ubuntu/Debian-based systems."
+        exit 1
+    fi
+    
     # Update package index
     sudo apt-get update
     
