@@ -232,7 +232,7 @@ EOF
     print_info "Starting production services..."
     
     # Start production services with HTTPS by default
-    docker compose -f docker compose.prod.yml up -d
+    docker compose -f docker-compose.prod.yml up -d
     
     print_success "Standard production environment is running!"
     show_access_info
@@ -267,11 +267,11 @@ GPU_WORKERS=1
 EOF
     
     print_info "Downloading AI models..."
-    docker compose -f docker compose.yml -f docker compose.genai.yml --profile setup run --rm model-downloader
-    
+    docker compose -f docker-compose.yml -f docker-compose.genai.yml --profile setup run --rm model-downloader
+
     print_info "Starting GenAI services..."
-    docker compose -f docker compose.yml -f docker compose.genai.yml up -d
-    
+    docker compose -f docker-compose.yml -f docker-compose.genai.yml up -d
+
     print_success "GenAI environment is running!"
     show_access_info
     print_info "GenAI endpoints: ${CYAN}http://localhost:8080/api/genai/v1${NC}"
@@ -322,7 +322,7 @@ setup_standard_https() {
     ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
     print_info "Restarting services with Let's Encrypt..."
-    docker compose -f docker compose.prod.yml restart traefik
+    docker compose -f docker-compose.prod.yml restart traefik
     
     print_success "HTTPS environment with Let's Encrypt is running!"
 }
@@ -344,9 +344,9 @@ setup_genai_https() {
     ./scripts/enhanced-ssl-manager.sh setup-prod "$DOMAIN_NAME" "$CERTBOT_EMAIL"
     
     print_info "Restarting services with Let's Encrypt..."
-    docker compose -f docker compose.yml -f docker compose.genai.yml down
-    docker compose -f docker compose.prod.yml --profile genai up -d
-    
+    docker compose -f docker-compose.yml -f docker-compose.genai.yml down
+    docker compose -f docker-compose.prod.yml --profile genai up -d
+
     print_success "GenAI + HTTPS environment with Let's Encrypt is running!"
 }
 
