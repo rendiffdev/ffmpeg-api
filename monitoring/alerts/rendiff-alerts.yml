@@ -1,0 +1,383 @@
+groups:
+  - name: rendiff_api_alerts
+    rules:
+      # API Health Alerts
+      - alert: APIDown
+        expr: up{job="rendiff-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+          service: rendiff-api
+        annotations:
+          summary: "Rendiff API is down"
+          description: "The Rendiff API has been down for more than 1 minute."
+          runbook_url: "https://docs.rendiff.com/runbooks/api-down"
+
+      - alert: APIHighErrorRate
+        expr: (sum(rate(traefik_service_requests_total{service=~".*rendiff-api.*",code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total{service=~".*rendiff-api.*"}[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+          service: rendiff-api
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/high-error-rate"
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{service=~".*rendiff-api.*"}[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+          service: rendiff-api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is {{ $value }}s over the last 10 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/high-latency"
+
+  - name: rendiff_database_alerts
+    rules:
+      # Database Alerts
+      - alert: DatabaseDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 1 minute."
+          runbook_url: "https://docs.rendiff.com/runbooks/database-down"
+
+      - alert: DatabaseHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+          service: postgresql
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value | humanizePercentage }} of maximum."
+          runbook_url: "https://docs.rendiff.com/runbooks/high-db-connections"
+
+      - alert: DatabaseSlowQueries
+        expr: pg_stat_activity_max_tx_duration{datname!~"template.*"} > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+          service: postgresql
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Longest running query has been active for {{ $value }}s in database {{ $labels.datname }}."
+          runbook_url: "https://docs.rendiff.com/runbooks/slow-queries"
+
+  - name: rendiff_redis_alerts
+    rules:
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+          runbook_url: "https://docs.rendiff.com/runbooks/redis-down"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          service: redis
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} of maximum."
+          runbook_url: "https://docs.rendiff.com/runbooks/redis-memory"
+
+      - alert: RedisConnectionSpike
+        expr: redis_connected_clients > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          service: redis
+        annotations:
+          summary: "High number of Redis connections"
+          description: "Redis has {{ $value }} connected clients."
+          runbook_url: "https://docs.rendiff.com/runbooks/redis-connections"
+
+  - name: rendiff_system_alerts
+    rules:
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 15m
+        labels:
+          severity: warning
+          component: system
+          service: node
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanizePercentage }} for more than 15 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/high-cpu"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+          service: node
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }} for more than 10 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/high-memory"
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          service: node
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space usage is {{ $value | humanizePercentage }} on {{ $labels.device }}."
+          runbook_url: "https://docs.rendiff.com/runbooks/low-disk-space"
+
+      - alert: CriticalDiskSpace
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} > 0.95
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+          service: node
+        annotations:
+          summary: "Critical disk space"
+          description: "Disk space usage is {{ $value | humanizePercentage }} on {{ $labels.device }}."
+          runbook_url: "https://docs.rendiff.com/runbooks/critical-disk-space"
+
+  - name: rendiff_job_processing_alerts
+    rules:
+      # Job Processing Alerts
+      - alert: HighJobFailureRate
+        expr: (sum(rate(rendiff_jobs_failed_total[5m])) / sum(rate(rendiff_jobs_completed_total[5m]) + rate(rendiff_jobs_failed_total[5m]))) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: processing
+          service: workers
+        annotations:
+          summary: "High job failure rate"
+          description: "Job failure rate is {{ $value | humanizePercentage }} over the last 10 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/job-failures"
+
+      - alert: JobQueueBacklog
+        expr: rendiff_queue_depth{queue="video_processing"} > 100
+        for: 15m
+        labels:
+          severity: warning
+          component: processing
+          service: queue
+        annotations:
+          summary: "Large job queue backlog"
+          description: "Video processing queue has {{ $value }} pending jobs."
+          runbook_url: "https://docs.rendiff.com/runbooks/queue-backlog"
+
+      - alert: NoActiveWorkers
+        expr: sum(rendiff_workers_active) == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: processing
+          service: workers
+        annotations:
+          summary: "No active workers"
+          description: "No workers are currently active to process jobs."
+          runbook_url: "https://docs.rendiff.com/runbooks/no-workers"
+
+      - alert: LongRunningJobs
+        expr: histogram_quantile(0.95, sum(rate(rendiff_job_duration_seconds_bucket[30m])) by (le)) > 3600
+        for: 30m
+        labels:
+          severity: warning
+          component: processing
+          service: workers
+        annotations:
+          summary: "Long running jobs detected"
+          description: "95th percentile job duration is {{ $value }}s over the last 30 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/long-jobs"
+
+  - name: rendiff_business_alerts
+    rules:
+      # Business Logic Alerts
+      - alert: NoJobsProcessed
+        expr: sum(rate(rendiff_jobs_completed_total[1h])) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: business
+          service: processing
+        annotations:
+          summary: "No jobs processed recently"
+          description: "No jobs have been completed in the last hour."
+          runbook_url: "https://docs.rendiff.com/runbooks/no-jobs-processed"
+
+      - alert: APIKeyValidationFailures
+        expr: rate(rendiff_api_key_validation_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+          service: authentication
+        annotations:
+          summary: "High API key validation failures"
+          description: "API key validation failures rate is {{ $value }} per second."
+          runbook_url: "https://docs.rendiff.com/runbooks/auth-failures"
+
+      - alert: WebhookDeliveryFailures
+        expr: (sum(rate(rendiff_webhook_failures_total[5m])) / sum(rate(rendiff_webhook_attempts_total[5m]))) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: integration
+          service: webhooks
+        annotations:
+          summary: "High webhook delivery failure rate"
+          description: "Webhook delivery failure rate is {{ $value | humanizePercentage }}."
+          runbook_url: "https://docs.rendiff.com/runbooks/webhook-failures"
+
+  - name: rendiff_security_alerts
+    rules:
+      # Security Alerts
+      - alert: SuspiciousAPIActivity
+        expr: sum(rate(traefik_service_requests_total{service=~".*rendiff-api.*",code="401"}[5m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+          service: api
+        annotations:
+          summary: "Suspicious API activity detected"
+          description: "High rate of 401 (Unauthorized) responses: {{ $value }} per second."
+          runbook_url: "https://docs.rendiff.com/runbooks/suspicious-activity"
+
+      - alert: RateLimitingTriggered
+        expr: sum(rate(traefik_service_requests_total{service=~".*rendiff-api.*",code="429"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: info
+          component: security
+          service: rate-limiting
+        annotations:
+          summary: "Rate limiting being triggered"
+          description: "Rate limiting responses: {{ $value }} per second."
+          runbook_url: "https://docs.rendiff.com/runbooks/rate-limiting"
+
+      - alert: SSLCertificateExpiringSoon
+        expr: (ssl_cert_not_after - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          component: security
+          service: ssl
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate will expire in {{ $value }} days."
+          runbook_url: "https://docs.rendiff.com/runbooks/ssl-expiry"
+
+  - name: rendiff_cache_alerts
+    rules:
+      # Cache Performance Alerts
+      - alert: LowCacheHitRate
+        expr: (rendiff_cache_hits_total / (rendiff_cache_hits_total + rendiff_cache_misses_total)) < 0.7
+        for: 15m
+        labels:
+          severity: warning
+          component: cache
+          service: redis
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} over the last 15 minutes."
+          runbook_url: "https://docs.rendiff.com/runbooks/low-cache-hit-rate"
+
+      - alert: CacheConnectionFailures
+        expr: rate(rendiff_cache_connection_errors_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          service: redis
+        annotations:
+          summary: "Cache connection failures"
+          description: "Cache connection error rate: {{ $value }} per second."
+          runbook_url: "https://docs.rendiff.com/runbooks/cache-connection-errors"
+
+# Alertmanager configuration example
+alertmanager_config: |
+  global:
+    smtp_smarthost: 'localhost:587'
+    smtp_from: 'alerts@rendiff.com'
+    smtp_auth_username: 'alerts@rendiff.com'
+    smtp_auth_password: 'password'
+
+  route:
+    group_by: ['alertname', 'cluster', 'service']
+    group_wait: 10s
+    group_interval: 10s
+    repeat_interval: 1h
+    receiver: 'web.hook'
+    routes:
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      repeat_interval: 5m
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      repeat_interval: 30m
+
+  receivers:
+  - name: 'web.hook'
+    webhook_configs:
+    - url: 'http://localhost:5001/'
+
+  - name: 'critical-alerts'
+    email_configs:
+    - to: 'ops-team@rendiff.com'
+      subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+      body: |
+        {{ range .Alerts }}
+        Alert: {{ .Annotations.summary }}
+        Description: {{ .Annotations.description }}
+        {{ end }}
+    slack_configs:
+    - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+      channel: '#ops-critical'
+      title: 'Critical Alert: {{ .GroupLabels.alertname }}'
+      text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+
+  - name: 'warning-alerts'
+    email_configs:
+    - to: 'dev-team@rendiff.com'
+      subject: 'WARNING: {{ .GroupLabels.alertname }}'
+      body: |
+        {{ range .Alerts }}
+        Alert: {{ .Annotations.summary }}
+        Description: {{ .Annotations.description }}
+        {{ end }}
+    slack_configs:
+    - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+      channel: '#ops-warnings'
+      title: 'Warning: {{ .GroupLabels.alertname }}'
+      text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'

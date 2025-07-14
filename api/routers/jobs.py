@@ -14,9 +14,12 @@ from sqlalchemy import select, and_, func
 import structlog
 
 from api.config import settings
-from api.dependencies import get_db, require_api_key
+from api.dependencies import get_db, get_current_user, require_api_key
 from api.models.job import Job, JobStatus, JobResponse, JobListResponse, JobProgress
+from api.models.api_key import ApiKeyUser
 from api.services.queue import QueueService
+from api.decorators import cache_response, cache_database_query, invalidate_cache, skip_on_post_request
+from api.cache import CacheKeyBuilder, get_cached_job_data, cache_job_data, invalidate_job_cache
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -25,22 +28,41 @@ queue_service = QueueService()
 
 
 @router.get("/jobs", response_model=JobListResponse)
+@cache_response(
+    ttl=60,
+    cache_type="job_list",
+    skip_if=skip_on_post_request,
+    vary_on=["api_key", "user_role"]
+)
 async def list_jobs(
     status: Optional[JobStatus] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     sort: str = Query("created_at:desc"),
     db: AsyncSession = Depends(get_db),
-    api_key: str = Depends(require_api_key),
+    user_data: tuple[ApiKeyUser, str] = Depends(get_current_user),
 ) -> JobListResponse:
     """
     List jobs with optional filtering and pagination.
     """
+    user, api_key = user_data
+    
     # Parse sort parameter
     sort_field, sort_order = sort.split(":") if ":" in sort else (sort, "asc")
     
-    # Build query
-    query = select(Job).where(Job.api_key == api_key)
+    # Build query - for anonymous users or API key users
+    if user.id == "anonymous":
+        # Anonymous users see all jobs (for backward compatibility when auth is disabled)
+        query = select(Job)
+    else:
+        # Regular users see only their own jobs (based on API key)
+        if user.is_admin:
+            # Admin users see all jobs
+            query = select(Job)
+        else:
+            # Regular users see only jobs created with their API key
+            # Use the raw API key for backward compatibility
+            query = select(Job).where(Job.api_key == api_key)
     
     if status:
         query = query.where(Job.status == status)
@@ -103,6 +125,11 @@ async def list_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
+@cache_response(
+    ttl=30,
+    cache_type="job_status",
+    vary_on=["api_key"]
+)
 async def get_job(
     job_id: UUID,
     db: AsyncSession = Depends(get_db),

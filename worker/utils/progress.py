@@ -1,30 +1,16 @@
-"""Progress tracking utilities"""
+"""Progress tracking utilities - Refactored to use async database operations"""
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 import structlog
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from api.config import settings
 from api.models.job import Job, JobStatus
+from worker.base import AsyncDatabaseMixin
 
 logger = structlog.get_logger()
 
-# Database setup for progress updates
-if "sqlite" in settings.DATABASE_URL:
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True
-    )
-else:
-    engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-class ProgressTracker:
+class ProgressTracker(AsyncDatabaseMixin):
     """Tracks job processing progress with real-time updates."""
     
     def __init__(self, job_id: str):
@@ -51,9 +37,9 @@ class ProgressTracker:
             if not force_update:
                 return
             
-            db = SessionLocal()
-            try:
-                job = db.query(Job).filter(Job.id == self.job_id).first()
+            # Use async database operations
+            async with self.get_async_session() as session:
+                job = await session.get(Job, self.job_id)
                 if job:
                     job.progress = min(100.0, max(0.0, percentage))
                     job.current_stage = stage
@@ -73,7 +59,7 @@ class ProgressTracker:
                         })
                         job.processing_stats = processing_stats
                     
-                    db.commit()
+                    await session.commit()
                     
                     # Log progress update
                     logger.info(
@@ -87,9 +73,6 @@ class ProgressTracker:
                     
                     self.last_update = now
                     self.last_percentage = percentage
-                    
-            finally:
-                db.close()
                 
         except Exception as e:
             logger.error(
@@ -140,24 +123,21 @@ class ProgressTracker:
     async def error(self, error_message: str):
         """Mark job as failed with error."""
         try:
-            db = SessionLocal()
-            try:
-                job = db.query(Job).filter(Job.id == self.job_id).first()
+            async with self.get_async_session() as session:
+                job = await session.get(Job, self.job_id)
                 if job:
                     job.status = JobStatus.FAILED
                     job.error_message = error_message
                     job.current_stage = "failed"
                     job.status_message = error_message
                     job.updated_at = datetime.utcnow()
-                    db.commit()
+                    await session.commit()
                     
                     logger.error(
                         "Job marked as failed",
                         job_id=self.job_id,
                         error=error_message
                     )
-            finally:
-                db.close()
                 
         except Exception as e:
             logger.error(
