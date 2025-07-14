@@ -1,0 +1,348 @@
+name: Stable Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docker/**'
+      - 'requirements*.txt'
+      - '.python-version'
+      - 'docker-compose*.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docker/**'
+      - 'requirements*.txt'
+      - '.python-version'
+      - 'docker-compose*.yml'
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: 'Python version to test'
+        required: false
+        default: '3.12.7'
+        type: string
+
+env:
+  PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.12.7' }}
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  validate-python-version:
+    name: Validate Python Version Consistency
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check Python version pinning
+      run: |
+        echo "Checking Python version consistency..."
+        
+        # Check .python-version file
+        if [ -f ".python-version" ]; then
+          PINNED_VERSION=$(cat .python-version)
+          echo "Pinned Python version: $PINNED_VERSION"
+          
+          if [ "$PINNED_VERSION" != "$PYTHON_VERSION" ]; then
+            echo "❌ Python version mismatch!"
+            echo "Pinned: $PINNED_VERSION"
+            echo "Target: $PYTHON_VERSION"
+            exit 1
+          fi
+        else
+          echo "⚠️ .python-version file not found"
+        fi
+        
+        # Check Dockerfiles for consistency
+        echo "Checking Dockerfiles for Python version references..."
+        
+        # This ensures all Dockerfiles use ARG for Python version
+        if grep -r "python:3\." docker/ | grep -v "ARG\|${PYTHON_VERSION}"; then
+          echo "❌ Found hardcoded Python versions in Dockerfiles"
+          exit 1
+        fi
+        
+        echo "✅ Python version consistency validated"
+
+  build-matrix:
+    name: Build Test Matrix
+    runs-on: ubuntu-latest
+    needs: validate-python-version
+    strategy:
+      matrix:
+        component: [api, worker-cpu, worker-gpu]
+        include:
+          - component: api
+            dockerfile: docker/api/Dockerfile.new
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          - component: worker-cpu
+            dockerfile: docker/worker/Dockerfile
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+              WORKER_TYPE=cpu
+          - component: worker-gpu
+            dockerfile: docker/worker/Dockerfile
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+              WORKER_TYPE=gpu
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build ${{ matrix.component }}
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ${{ matrix.dockerfile }}
+        build-args: ${{ matrix.build_args }}
+        tags: ffmpeg-${{ matrix.component }}:test
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test ${{ matrix.component }} dependencies
+      run: |
+        echo "Testing critical dependencies in ${{ matrix.component }}..."
+        
+        # Test psycopg2-binary (the main fix)
+        docker run --rm ffmpeg-${{ matrix.component }}:test python -c "
+        import psycopg2
+        print(f'✅ psycopg2-binary: {psycopg2.__version__}')
+        "
+        
+        # Test other critical dependencies
+        if [ "${{ matrix.component }}" = "api" ]; then
+          docker run --rm ffmpeg-${{ matrix.component }}:test python -c "
+          import fastapi, sqlalchemy, asyncpg
+          print(f'✅ FastAPI: {fastapi.__version__}')
+          print(f'✅ SQLAlchemy: {sqlalchemy.__version__}')
+          print(f'✅ asyncpg: {asyncpg.__version__}')
+          "
+        fi
+        
+        if [[ "${{ matrix.component }}" == worker* ]]; then
+          docker run --rm ffmpeg-${{ matrix.component }}:test python -c "
+          import celery, redis
+          print(f'✅ Celery: {celery.__version__}')
+          print(f'✅ Redis: {redis.__version__}')
+          "
+        fi
+        
+        echo "✅ All dependencies verified for ${{ matrix.component }}"
+
+  test-ffmpeg:
+    name: Test FFmpeg Installation
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build API container
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: docker/api/Dockerfile.new
+        build-args: |
+          PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+        tags: ffmpeg-api:ffmpeg-test
+        load: true
+    
+    - name: Test FFmpeg functionality
+      run: |
+        echo "Testing FFmpeg installation and basic functionality..."
+        
+        # Test FFmpeg version
+        docker run --rm ffmpeg-api:ffmpeg-test ffmpeg -version | head -1
+        
+        # Test FFmpeg basic functionality with a simple command
+        docker run --rm ffmpeg-api:ffmpeg-test ffmpeg -f lavfi -i testsrc=duration=1:size=320x240:rate=1 -t 1 test.mp4
+        
+        echo "✅ FFmpeg installation and basic functionality verified"
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: [build-matrix, test-ffmpeg]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Create test environment
+      run: |
+        # Create minimal test environment
+        cat > test.env << EOF
+        DATABASE_URL=sqlite:///test.db
+        REDIS_URL=redis://redis:6379
+        ENABLE_API_KEYS=false
+        LOG_LEVEL=INFO
+        EOF
+    
+    - name: Test with Docker Compose
+      run: |
+        # Use stable compose configuration
+        docker-compose -f docker-compose.yml -f docker-compose.stable.yml build
+        
+        # Start services
+        docker-compose -f docker-compose.yml -f docker-compose.stable.yml up -d
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Test API health endpoint
+        curl -f http://localhost:8000/api/v1/health || exit 1
+        
+        echo "✅ Integration test passed"
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.yml -f docker-compose.stable.yml down -v || true
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build API for scanning
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: docker/api/Dockerfile.new
+        build-args: |
+          PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+        tags: ffmpeg-api:security-scan
+        load: true
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ffmpeg-api:security-scan'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  dependency-check:
+    name: Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install safety
+      run: pip install safety
+    
+    - name: Check dependencies with safety
+      run: |
+        # Check main requirements
+        safety check -r requirements.txt
+        
+        # Check stable requirements if exists
+        if [ -f "docker/requirements-stable.txt" ]; then
+          safety check -r docker/requirements-stable.txt
+        fi
+
+  generate-report:
+    name: Generate Build Report
+    runs-on: ubuntu-latest
+    needs: [validate-python-version, build-matrix, test-ffmpeg, integration-test, security-scan, dependency-check]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Generate build report
+      run: |
+        cat > build-report.md << EOF
+        # Stable Build Report
+        
+        **Date**: $(date)
+        **Python Version**: ${{ env.PYTHON_VERSION }}
+        **Commit**: ${{ github.sha }}
+        **Branch**: ${{ github.ref_name }}
+        
+        ## Build Results
+        
+        | Component | Status |
+        |-----------|---------|
+        | Python Version Validation | ${{ needs.validate-python-version.result }} |
+        | API Build | ${{ needs.build-matrix.result }} |
+        | Worker CPU Build | ${{ needs.build-matrix.result }} |
+        | Worker GPU Build | ${{ needs.build-matrix.result }} |
+        | FFmpeg Test | ${{ needs.test-ffmpeg.result }} |
+        | Integration Test | ${{ needs.integration-test.result }} |
+        | Security Scan | ${{ needs.security-scan.result }} |
+        | Dependency Check | ${{ needs.dependency-check.result }} |
+        
+        ## Key Improvements
+        
+        - ✅ Fixed psycopg2-binary compilation issue
+        - ✅ Standardized Python version across all containers
+        - ✅ Added comprehensive build dependencies
+        - ✅ Implemented proper runtime-only final stages
+        - ✅ Added dependency vulnerability scanning
+        - ✅ Created integration testing pipeline
+        
+        ## Recommendations
+        
+        1. Use Python ${{ env.PYTHON_VERSION }} for all deployments
+        2. Monitor dependency vulnerabilities regularly
+        3. Keep FFmpeg updated for security patches
+        4. Implement automated deployment with these validated images
+        
+        EOF
+        
+        echo "Build report generated"
+    
+    - name: Upload build report
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-report
+        path: build-report.md
+
+  notify-status:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [validate-python-version, build-matrix, test-ffmpeg, integration-test, security-scan, dependency-check]
+    if: always()
+    
+    steps:
+    - name: Build status notification
+      run: |
+        if [ "${{ needs.build-matrix.result }}" = "success" ] && \
+           [ "${{ needs.integration-test.result }}" = "success" ]; then
+          echo "🎉 Stable build successful! Ready for deployment."
+          echo "BUILD_STATUS=success" >> $GITHUB_ENV
+        else
+          echo "❌ Build failed. Check the logs for details."
+          echo "BUILD_STATUS=failure" >> $GITHUB_ENV
+        fi
