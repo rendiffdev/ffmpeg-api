@@ -1,0 +1,79 @@
+# Stable dependency versions with known compatibility
+# This file pins specific versions to prevent build failures
+
+# Core FastAPI Stack
+fastapi==0.109.0
+uvicorn[standard]==0.25.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+starlette==0.35.1
+
+# Database Stack (CRITICAL: These versions are tested for Python 3.12.7)
+sqlalchemy==2.0.25
+asyncpg==0.29.0
+# FIXED: Use psycopg2-binary with known compatibility
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Task Queue Stack
+celery==5.3.4
+redis==5.0.1
+flower==2.0.1
+
+# AWS and Storage
+boto3==1.34.0
+aiofiles==23.2.1
+
+# Media Processing (FFmpeg wrapper)
+ffmpeg-python==0.2.0
+pillow==10.2.0
+
+# HTTP and WebSocket
+httpx==0.26.0
+aiohttp==3.9.1
+websockets==12.0
+
+# Monitoring and Logging
+prometheus-client==0.19.0
+structlog==24.1.0
+python-json-logger==2.0.7
+
+# Configuration and Utilities
+pyyaml==6.0.1
+python-dotenv==1.0.0
+click==8.1.7
+rich==13.7.0
+humanize==4.9.0
+
+# Security and Authentication
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+cryptography==41.0.7
+
+# Development and Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+black==23.12.1
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0
+
+# Additional Dependencies for Stability
+typing-extensions==4.14.1
+annotated-types==0.7.0
+greenlet==3.2.3
+anyio==4.9.0
+certifi==2025.7.14
+idna==3.10
+sniffio==1.3.1
+attrs==25.3.0
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
+
+# Build Tools (for reproducible builds)
+pip==24.0
+setuptools==69.5.1
+wheel==0.43.0

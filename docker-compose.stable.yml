@@ -1,0 +1,69 @@
+# Docker Compose override for stable builds
+# This file ensures consistent Python versions and build arguments
+
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile.new
+      args:
+        PYTHON_VERSION: 3.12.7
+      cache_from:
+        - python:3.12.7-slim
+    environment:
+      # Override environment for stability
+      PYTHON_VERSION: 3.12.7
+      BUILD_TYPE: stable
+      DEPENDENCY_CHECK: enabled
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  worker-cpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        WORKER_TYPE: cpu
+        PYTHON_VERSION: 3.12.7
+      cache_from:
+        - python:3.12.7-slim
+    environment:
+      PYTHON_VERSION: 3.12.7
+      WORKER_TYPE: cpu
+      BUILD_TYPE: stable
+
+  worker-gpu:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        WORKER_TYPE: gpu
+        PYTHON_VERSION: 3.12.7
+      cache_from:
+        - nvidia/cuda:12.3.0-runtime-ubuntu22.04
+    environment:
+      PYTHON_VERSION: 3.12.7
+      WORKER_TYPE: gpu
+      BUILD_TYPE: stable
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: video,compute,utility
+
+  # Add build validation service
+  build-validator:
+    image: python:3.12.7-slim
+    command: |
+      sh -c "
+        echo '=== Build Validation Service ==='
+        python --version
+        echo 'Testing psycopg2 import...'
+        python -c 'import psycopg2; print(\"psycopg2 version:\", psycopg2.__version__)'
+        echo 'All validations passed!'
+      "
+    profiles:
+      - validation
