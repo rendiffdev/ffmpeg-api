@@ -1,3 +1,6 @@
+# Build argument for worker type selection
+ARG WORKER_TYPE=cpu
+
 # Build stage
 FROM python:3.12-slim AS builder
 
@@ -52,8 +55,7 @@ RUN chmod +x /tmp/install-ffmpeg.sh && \
     /tmp/install-ffmpeg.sh && \
     rm /tmp/install-ffmpeg.sh
 
-# Select runtime based on build arg
-ARG WORKER_TYPE=cpu
+# Select runtime based on build arg (ARG declared at top)
 FROM runtime-${WORKER_TYPE} AS runtime
 
 # Copy virtual environment from builder
