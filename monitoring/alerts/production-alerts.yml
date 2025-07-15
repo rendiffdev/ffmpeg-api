@@ -1,0 +1,273 @@
+groups:
+  - name: ffmpeg-api-production
+    rules:
+      # High Priority Alerts
+      - alert: APIHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: ffmpeg-api
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value }} errors/sec for the last 5 minutes"
+          runbook_url: "https://docs.company.com/runbooks/api-errors"
+
+      - alert: APIResponseTimeHigh
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5.0
+        for: 3m
+        labels:
+          severity: warning
+          service: ffmpeg-api
+        annotations:
+          summary: "API response time is high"
+          description: "95th percentile response time is {{ $value }}s"
+          runbook_url: "https://docs.company.com/runbooks/performance"
+
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High number of database connections"
+          description: "Database has {{ $value }} active connections"
+          runbook_url: "https://docs.company.com/runbooks/database"
+
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database is down"
+          description: "PostgreSQL database is not responding"
+          runbook_url: "https://docs.company.com/runbooks/database-down"
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache/queue is not responding"
+          runbook_url: "https://docs.company.com/runbooks/redis-down"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}%"
+          runbook_url: "https://docs.company.com/runbooks/memory"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+          runbook_url: "https://docs.company.com/runbooks/cpu"
+
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is only {{ $value }}% available"
+          runbook_url: "https://docs.company.com/runbooks/disk-space"
+
+      # Job Processing Alerts
+      - alert: JobQueueBacklog
+        expr: celery_queue_length > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: job-queue
+        annotations:
+          summary: "Job queue backlog"
+          description: "Job queue has {{ $value }} pending jobs"
+          runbook_url: "https://docs.company.com/runbooks/job-queue"
+
+      - alert: JobProcessingTimeHigh
+        expr: histogram_quantile(0.95, rate(ffmpeg_job_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: job-processing
+        annotations:
+          summary: "Job processing time is high"
+          description: "95th percentile job processing time is {{ $value }}s"
+          runbook_url: "https://docs.company.com/runbooks/job-performance"
+
+      - alert: JobFailureRateHigh
+        expr: rate(ffmpeg_jobs_failed_total[5m]) / rate(ffmpeg_jobs_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: job-processing
+        annotations:
+          summary: "High job failure rate"
+          description: "Job failure rate is {{ $value * 100 }}%"
+          runbook_url: "https://docs.company.com/runbooks/job-failures"
+
+      - alert: NoJobsProcessed
+        expr: increase(ffmpeg_jobs_completed_total[10m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: job-processing
+        annotations:
+          summary: "No jobs processed recently"
+          description: "No jobs have been completed in the last 10 minutes"
+          runbook_url: "https://docs.company.com/runbooks/job-stall"
+
+      # Security Alerts
+      - alert: RateLimitExceeded
+        expr: rate(rate_limit_exceeded_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Rate limit exceeded frequently"
+          description: "Rate limit exceeded {{ $value }} times per second"
+          runbook_url: "https://docs.company.com/runbooks/rate-limiting"
+
+      - alert: UnauthorizedAccess
+        expr: rate(http_requests_total{status="401"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High unauthorized access attempts"
+          description: "{{ $value }} unauthorized requests per second"
+          runbook_url: "https://docs.company.com/runbooks/security"
+
+      - alert: APIKeyUsageSpike
+        expr: rate(api_key_usage_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: info
+          service: api-keys
+        annotations:
+          summary: "API key usage spike"
+          description: "API key usage is {{ $value }} requests per second"
+          runbook_url: "https://docs.company.com/runbooks/api-keys"
+
+      # Business Logic Alerts
+      - alert: StorageUsageHigh
+        expr: storage_usage_bytes / storage_total_bytes * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: storage
+        annotations:
+          summary: "Storage usage is high"
+          description: "Storage usage is {{ $value }}%"
+          runbook_url: "https://docs.company.com/runbooks/storage"
+
+      - alert: LargeFileUpload
+        expr: increase(large_file_uploads_total[1h]) > 10
+        for: 1h
+        labels:
+          severity: info
+          service: uploads
+        annotations:
+          summary: "High number of large file uploads"
+          description: "{{ $value }} large files uploaded in the last hour"
+          runbook_url: "https://docs.company.com/runbooks/large-uploads"
+
+      # Infrastructure Alerts
+      - alert: ContainerRestarts
+        expr: increase(kube_pod_container_status_restarts_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: kubernetes
+        annotations:
+          summary: "Container restart rate is high"
+          description: "Container {{ $labels.container }} has restarted {{ $value }} times"
+          runbook_url: "https://docs.company.com/runbooks/container-restarts"
+
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: critical
+          service: kubernetes
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod }} is crash looping"
+          runbook_url: "https://docs.company.com/runbooks/crash-loop"
+
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: kubernetes
+        annotations:
+          summary: "Kubernetes node is not ready"
+          description: "Node {{ $labels.node }} is not ready"
+          runbook_url: "https://docs.company.com/runbooks/node-not-ready"
+
+      # Backup and Recovery Alerts
+      - alert: BackupFailed
+        expr: increase(backup_failures_total[1h]) > 0
+        for: 1h
+        labels:
+          severity: critical
+          service: backup
+        annotations:
+          summary: "Database backup failed"
+          description: "Database backup has failed {{ $value }} times in the last hour"
+          runbook_url: "https://docs.company.com/runbooks/backup-failure"
+
+      - alert: BackupOld
+        expr: time() - backup_last_success_timestamp > 86400
+        for: 1h
+        labels:
+          severity: warning
+          service: backup
+        annotations:
+          summary: "Backup is old"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago"
+          runbook_url: "https://docs.company.com/runbooks/backup-old"
+
+      # Health Check Alerts
+      - alert: HealthCheckFailing
+        expr: up{job="ffmpeg-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: health-check
+        annotations:
+          summary: "Health check is failing"
+          description: "Health check endpoint is not responding"
+          runbook_url: "https://docs.company.com/runbooks/health-check"
+
+      - alert: ComponentUnhealthy
+        expr: health_check_status{component!="healthy"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: health-check
+        annotations:
+          summary: "Component health check failing"
+          description: "Component {{ $labels.component }} is not healthy"
+          runbook_url: "https://docs.company.com/runbooks/component-health"

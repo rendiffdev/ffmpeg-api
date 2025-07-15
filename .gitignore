@@ -1,68 +1,214 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-.env
-.DS_Store
-/tmp
+*$py.class
 
-# Database files
-*.db
-*.db-shm
-*.db-wal
-/data/
+# C extensions
+*.so
 
-# Backup files
-*.backup*
-*.bak
-*~
-.env_backups/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Log files
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
 *.log
-/logs/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
-# Temporary files
-.tmp/
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+#Pipfile.lock
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# FFmpeg API specific
+uploads/
+outputs/
+storage/
+backups/
+logs/
 temp/
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.m4a
 
-# IDE files
+# Docker volumes
+postgres_data/
+redis_data/
+prometheus_data/
+grafana_data/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+certs/
+ssl/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS files
-Thumbs.db
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Generated documentation and reports
-CLEANUP_SUMMARY.md
-*REPORT*.md
-*AUDIT*.md
-*STATUS*.md
-*SUMMARY*.md
-*ANALYSIS*.md
-*_REPORT.md
-*_AUDIT.md
-*_STATUS.md
-
-# Storage and uploads
-/storage/
-/uploads/
-
-# SSL certificates (keep generation script)
-traefik/certs/*.crt
-traefik/certs/*.key
-traefik/certs/*.csr
-traefik/certs/*.pem
-traefik/letsencrypt/
-traefik/acme/
-
-# Test results and monitoring
-test-results/
-monitoring/ssl-scan-results/
-monitoring/*.log
-
-# Backups
-backups/
+# Temporary files
+*.tmp
+*.temp
+*.bak
 *.backup
-backup-*/
+*.old
+*.orig
+
+# Configuration files with secrets
+config/secrets.yml
+config/production.yml
+traefik/acme.json
+
+# Monitoring data
+monitoring/data/
+grafana/data/
+prometheus/data/
+
+# Kubernetes secrets
+k8s/secrets/
+k8s/*/secrets/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Local development
+.local/
+local/
+dev/
+development/

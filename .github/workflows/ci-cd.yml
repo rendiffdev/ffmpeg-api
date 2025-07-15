@@ -1,0 +1,394 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  PYTHON_VERSION: 3.12.7
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        pip install pytest pytest-asyncio pytest-cov
+    
+    - name: Create test environment file
+      run: |
+        cat > .env.test << EOF
+        DATABASE_URL=postgresql://postgres:test_password@localhost:5432/test_db
+        REDIS_URL=redis://localhost:6379
+        SECRET_KEY=test_secret_key_for_testing_only
+        ENABLE_API_KEYS=true
+        LOG_LEVEL=INFO
+        TESTING=true
+        EOF
+    
+    - name: Run database migrations
+      run: |
+        export $(cat .env.test | xargs)
+        alembic upgrade head
+    
+    - name: Run tests with coverage
+      run: |
+        export $(cat .env.test | xargs)
+        pytest --cov=api --cov-report=xml --cov-report=html --cov-report=term-missing -v
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Generate coverage report
+      run: |
+        echo "## Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "$(coverage report)" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Archive test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          htmlcov/
+          coverage.xml
+          pytest-report.xml
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 mypy isort bandit safety
+    
+    - name: Run Black (code formatting)
+      run: black --check --diff api/ tests/
+    
+    - name: Run isort (import sorting)
+      run: isort --check-only --diff api/ tests/
+    
+    - name: Run flake8 (linting)
+      run: flake8 api/ tests/
+    
+    - name: Run mypy (type checking)
+      run: mypy api/
+    
+    - name: Run bandit (security)
+      run: bandit -r api/
+    
+    - name: Run safety (dependency security)
+      run: safety check
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    strategy:
+      matrix:
+        component: [api, worker-cpu, worker-gpu]
+        include:
+          - component: api
+            dockerfile: docker/api/Dockerfile
+            context: .
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          - component: worker-cpu
+            dockerfile: docker/worker/Dockerfile
+            context: .
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+              WORKER_TYPE=cpu
+          - component: worker-gpu
+            dockerfile: docker/worker/Dockerfile
+            context: .
+            build_args: |
+              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+              WORKER_TYPE=gpu
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Container Registry
+      if: github.ref == 'refs/heads/main'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/${{ matrix.component }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.context }}
+        file: ${{ matrix.dockerfile }}
+        build-args: ${{ matrix.build_args }}
+        push: ${{ github.ref == 'refs/heads/main' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ghcr.io/${{ github.repository }}/api:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build test environment
+      run: |
+        docker-compose -f docker-compose.yml -f docker-compose.test.yml build
+    
+    - name: Run integration tests
+      run: |
+        docker-compose -f docker-compose.yml -f docker-compose.test.yml up -d
+        sleep 30
+        
+        # Run API health check
+        curl -f http://localhost:8000/api/v1/health || exit 1
+        
+        # Run basic API tests
+        python -m pytest tests/integration/ -v
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.yml -f docker-compose.test.yml down -v
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, integration-test]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add deployment commands here
+        # Example: kubectl apply -f k8s/staging/
+    
+    - name: Run staging tests
+      run: |
+        echo "Running staging tests..."
+        # Add staging test commands here
+    
+    - name: Notify deployment
+      if: always()
+      run: |
+        echo "Staging deployment completed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, integration-test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add production deployment commands here
+        # Example: kubectl apply -f k8s/production/
+    
+    - name: Run production smoke tests
+      run: |
+        echo "Running production smoke tests..."
+        # Add production smoke test commands here
+    
+    - name: Create deployment issue
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: 'Production deployment failed',
+            body: 'Production deployment failed. Please check the logs and take necessary action.',
+            labels: ['bug', 'production', 'deployment']
+          })
+    
+    - name: Notify deployment
+      if: always()
+      run: |
+        echo "Production deployment completed"
+
+  backup-database:
+    name: Database Backup
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run database backup
+      run: |
+        echo "Running database backup..."
+        # Add database backup commands here
+        # Example: ./scripts/backup-database.sh
+    
+    - name: Upload backup artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: database-backup
+        path: backups/
+        retention-days: 7
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run performance tests
+      run: |
+        echo "Running performance tests..."
+        # Add performance test commands here
+        # Example: locust -f tests/performance/locustfile.py
+    
+    - name: Generate performance report
+      run: |
+        echo "Generating performance report..."
+        # Add performance report generation here
+
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, integration-test]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: needs.test.result == 'success' && needs.lint.result == 'success' && needs.build.result == 'success'
+      run: |
+        echo "All CI/CD jobs completed successfully!"
+    
+    - name: Notify failure
+      if: needs.test.result == 'failure' || needs.lint.result == 'failure' || needs.build.result == 'failure'
+      run: |
+        echo "Some CI/CD jobs failed. Please check the logs."
+        exit 1
