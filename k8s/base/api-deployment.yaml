@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ffmpeg-api
+  namespace: ffmpeg-api
+  labels:
+    app: ffmpeg-api
+    component: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ffmpeg-api
+      component: api
+  template:
+    metadata:
+      labels:
+        app: ffmpeg-api
+        component: api
+    spec:
+      containers:
+      - name: api
+        image: ffmpeg-api:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: ffmpeg-api-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: ffmpeg-api-secrets
+              key: redis-url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ffmpeg-api-secrets
+              key: secret-key
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ffmpeg-api-service
+  namespace: ffmpeg-api
+spec:
+  selector:
+    app: ffmpeg-api
+    component: api
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
