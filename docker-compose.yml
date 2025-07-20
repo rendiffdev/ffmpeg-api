@@ -1,34 +1,14 @@
-# version: '3.8'  # Version is obsolete in Docker Compose v2+
-
 services:
-  # Interactive Setup Wizard (run once for initial configuration)
-  setup:
-    build:
-      context: .
-      dockerfile: docker/setup/Dockerfile
-    container_name: rendiff_setup
-    volumes:
-      - .:/host  # Mount the entire project directory
-      - ./config:/app/config:ro  # Mount config templates
-    environment:
-      - TERM=xterm-256color  # Better terminal support
-    profiles:
-      - setup
-    stdin_open: true
-    tty: true
-    networks:
-      - rendiff
-
-  # Traefik Reverse Proxy with HTTPS (runs by default)
+  # Traefik Reverse Proxy
   traefik:
     image: traefik:v3.0
-    container_name: rendiff_traefik
+    container_name: ffmpeg_traefik
     command:
       - --configFile=/etc/traefik/traefik.yml
     ports:
       - "80:80"
       - "443:443"
-      - "8081:8080"  # Dashboard on 8081 to avoid conflict
+      - "8081:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -37,7 +17,7 @@ services:
     depends_on:
       - api
     networks:
-      - rendiff
+      - ffmpeg-net
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -45,106 +25,76 @@ services:
       - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
       - "traefik.http.routers.traefik-dashboard.tls=true"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      
-  # API Gateway (now behind Traefik)
-  krakend:
-    image: devopsfaith/krakend:2.6
-    container_name: rendiff_gateway
-    volumes:
-      - ./config/krakend.json:/etc/krakend/krakend.json:ro
-    # No port exposure - accessed through Traefik
-    depends_on:
-      - api
-    networks:
-      - rendiff
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.krakend.rule=Host(`localhost`) && PathPrefix(`/`)"
-      - "traefik.http.routers.krakend.entrypoints=websecure"
-      - "traefik.http.routers.krakend.tls=true"
-      - "traefik.http.services.krakend.loadbalancer.server.port=8080"
-
   # Database Service
   postgres:
     image: postgres:15-alpine
-    container_name: rendiff_postgres
+    container_name: ffmpeg_postgres
     environment:
       - POSTGRES_DB=ffmpeg_api
       - POSTGRES_USER=ffmpeg_user
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-defaultpassword}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
-    # ports:
-    #   - "5432:5432"  # Remove port exposure for security
+    ports:
+      - "5432:5432"
     networks:
-      - rendiff
+      - ffmpeg-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ffmpeg_user -d ffmpeg_api"]
       interval: 10s
       timeout: 5s
       retries: 5
-    command: >
-      postgres 
-      -c max_connections=200
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
 
-  # Database Migration Service (runs once to initialize schema)
+  # Queue Service (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: ffmpeg_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ffmpeg-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Database Migration Service
   db-migrate:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
     command: ["/app/scripts/docker-entrypoint.sh", "migrate"]
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://ffmpeg_user:defaultpassword@postgres:5432/ffmpeg_api}
       - PYTHONUNBUFFERED=1
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=ffmpeg_user
-      - POSTGRES_DB=ffmpeg_api
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - rendiff
+      - ffmpeg-net
     restart: "no"
-    volumes:
-      - ./alembic:/app/alembic:ro
-      - ./alembic.ini:/app/alembic.ini:ro
 
   # API Service
   api:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
+    container_name: ffmpeg_api
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://ffmpeg_user:defaultpassword@postgres:5432/ffmpeg_api}
       - REDIS_URL=redis://redis:6379/0
-      - STORAGE_CONFIG=/app/config/storage.yml
       - LOG_LEVEL=info
       - PYTHONUNBUFFERED=1
       - API_HOST=0.0.0.0
       - API_PORT=8000
-      - API_WORKERS=4
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=ffmpeg_user
-      - POSTGRES_DB=ffmpeg_api
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
     volumes:
-      - ./config:/app/config:ro
-      - storage:/storage
+      - ./storage:/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,176 +103,54 @@ services:
       db-migrate:
         condition: service_completed_successfully
     networks:
-      - rendiff
+      - ffmpeg-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/app/scripts/health-check.sh", "api"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      start_period: 120s
+      start_period: 60s
       retries: 3
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
 
-  # Worker Service - CPU
-  worker-cpu:
+  # Worker Service - CPU Only
+  worker:
     build:
       context: .
       dockerfile: docker/worker/Dockerfile
+      args:
+        - WORKER_TYPE=cpu
+    container_name: ffmpeg_worker
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://ffmpeg_user:defaultpassword@postgres:5432/ffmpeg_api}
       - REDIS_URL=redis://redis:6379/0
-      - STORAGE_CONFIG=/app/config/storage.yml
       - WORKER_TYPE=cpu
       - WORKER_CONCURRENCY=4
       - LOG_LEVEL=info
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./config:/app/config:ro
-      - storage:/storage
+      - ./storage:/storage
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - rendiff
+      - ffmpeg-net
     restart: unless-stopped
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-
-  # Worker Service - GPU (optional)
-  worker-gpu:
-    build:
-      context: .
-      dockerfile: docker/worker/Dockerfile
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://redis:6379/0
-      - STORAGE_CONFIG=/app/config/storage.yml
-      - WORKER_TYPE=gpu
-      - WORKER_CONCURRENCY=2
-      - LOG_LEVEL=info
-      - PYTHONUNBUFFERED=1
-      - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./config:/app/config:ro
-      - storage:/storage
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - rendiff
-    restart: unless-stopped
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    profiles:
-      - gpu
-
-  # Queue Service (Redis)
-  redis:
-    image: redis:7-alpine
-    container_name: rendiff_redis
-    command: >
-      redis-server
-      --appendonly yes
-      --appendfsync everysec
-      --maxmemory 2gb
-      --maxmemory-policy allkeys-lru
-      --timeout 300
-      --tcp-keepalive 300
-      --maxclients 1000
-    volumes:
-      - redis-data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    # ports:
-    #   - "6379:6379"  # Remove port exposure for security
-    networks:
-      - rendiff
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-
-  # Monitoring - Prometheus
-  prometheus:
-    image: prom/prometheus:v2.48.0
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
-    networks:
-      - rendiff
-    restart: unless-stopped
-    profiles:
-      - monitoring
-
-  # Monitoring - Grafana
-  grafana:
-    image: grafana/grafana:10.2.0
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
-    ports:
-      - "3000:3000"
-    networks:
-      - rendiff
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-    profiles:
-      - monitoring
-
 
 networks:
-  rendiff:
+  ffmpeg-net:
     driver: bridge
 
 volumes:
   storage:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${STORAGE_PATH:-./storage}
   postgres-data:
     driver: local
   redis-data:
-    driver: local
-  prometheus-data:
-    driver: local
-  grafana-data:
     driver: local

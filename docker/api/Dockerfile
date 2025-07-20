@@ -10,7 +10,7 @@ FROM python:${PYTHON_VERSION}-slim AS builder
 # Build-time labels for traceability
 LABEL stage=builder
 LABEL python.version=${PYTHON_VERSION}
-LABEL build.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+LABEL build.date="2024-01-01"
 
 # Set environment variables for consistent builds
 ENV PYTHONUNBUFFERED=1 \

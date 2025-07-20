@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: version-controller
+        name: Version Controller
+        entry: ./scripts/versionController.sh
+        language: system
+        stages: [commit]
+        pass_filenames: false
+        always_run: true
+        verbose: true
