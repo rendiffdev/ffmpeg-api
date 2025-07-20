@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: version-controller
         name: Version Controller
-        entry: ./scripts/versionController.sh
+        entry: ./scripts/version-hook.sh
         language: system
         stages: [commit]
         pass_filenames: false
