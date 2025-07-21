@@ -4,6 +4,7 @@ This document outlines the clean, organized structure of the FFmpeg API project.
 
 ## Directory Structure
 
+
 ```
 ffmpeg-api/
 ├── .github/
