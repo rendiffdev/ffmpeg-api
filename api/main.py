@@ -13,7 +13,7 @@ from prometheus_client import make_asgi_app
 import structlog
 
 from api.config import settings
-from api.routers import convert, jobs, admin, health
+from api.routers import convert, jobs, admin, health, api_keys
 from api.utils.logger import setup_logging
 from api.utils.error_handlers import (
     RendiffError, rendiff_exception_handler, validation_exception_handler,
@@ -123,6 +123,7 @@ app.include_router(convert.router, prefix="/api/v1", tags=["convert"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
 app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
+app.include_router(api_keys.router, prefix="/api/v1", tags=["api-keys"])
 
 # Conditionally include GenAI routers
 try:

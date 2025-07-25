@@ -1,7 +1,8 @@
-# version: '3.8'  # Version is obsolete in Docker Compose v2+
-
-# Production-Ready Rendiff Deployment
+# Docker Compose format version is no longer required in Compose v2+
+# Production-Ready FFmpeg API Deployment
 # This configuration includes health checks, resource limits, and production settings
+
+name: ffmpeg-api-prod
 
 services:
   # API Service
@@ -63,7 +64,7 @@ services:
           memory: 512M
           cpus: '0.5'
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
     labels:
       # Enable Traefik for this service
       - "traefik.enable=true"
@@ -115,7 +116,7 @@ services:
           memory: 1G
           cpus: '1.0'
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
 
   # GPU Workers (optional)
   worker-gpu:
@@ -159,7 +160,7 @@ services:
     profiles:
       - gpu
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
 
   # Redis for task queue
   redis:
@@ -185,7 +186,7 @@ services:
           memory: 256M
           cpus: '0.25'
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
 
   # PostgreSQL (for production - optional)
   postgres:
@@ -216,11 +217,11 @@ services:
     profiles:
       - postgres
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
 
   # Prometheus for metrics
   prometheus:
-    image: prom/prometheus:v2.48.0
+    image: prom/prometheus:v2.54.0
     container_name: rendiff-prometheus
     restart: unless-stopped
     ports:
@@ -251,7 +252,7 @@ services:
     profiles:
       - monitoring
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
     labels:
       # Enable Traefik for this service
       - "traefik.enable=true"
@@ -264,7 +265,7 @@ services:
 
   # Grafana for dashboards
   grafana:
-    image: grafana/grafana:10.2.0
+    image: grafana/grafana:11.2.0
     container_name: rendiff-grafana
     restart: unless-stopped
     ports:
@@ -295,7 +296,7 @@ services:
     profiles:
       - monitoring
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
     labels:
       # Enable Traefik for this service
       - "traefik.enable=true"
@@ -308,7 +309,7 @@ services:
 
   # Traefik reverse proxy (recommended for production)
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.1
     container_name: rendiff-traefik
     restart: unless-stopped
     command:
@@ -346,7 +347,7 @@ services:
           cpus: '0.1'
     # No profile - Traefik runs by default for HTTPS
     networks:
-      - rendiff-network
+      - ffmpeg-api-network
     labels:
       # Enable Traefik for the dashboard
       - "traefik.enable=true"
@@ -370,8 +371,12 @@ volumes:
     driver: local
 
 networks:
-  rendiff-network:
+  ffmpeg-api-network:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-ffmpeg-api
     ipam:
+      driver: default
       config:
         - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
