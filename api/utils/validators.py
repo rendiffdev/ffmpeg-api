@@ -1,6 +1,7 @@
 """
-Input validation utilities
+Input validation utilities with security enhancements
 """
+import os
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
@@ -24,9 +25,73 @@ ALLOWED_IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".svg"
 }
 
-# Regex patterns
-PATH_REGEX = re.compile(r'^[a-zA-Z0-9\-_./]+$')
+# Security patterns
+SAFE_FILENAME_REGEX = re.compile(r'^[a-zA-Z0-9\-_]+(\.[a-zA-Z0-9]+)?$')
 CODEC_REGEX = re.compile(r'^[a-zA-Z0-9\-_]+$')
+
+# Security configuration
+ALLOWED_BASE_PATHS = {
+    '/storage', '/tmp/rendiff', '/app/uploads', '/app/temp'
+}
+
+class SecurityError(Exception):
+    """Security validation error."""
+    pass
+
+
+def validate_secure_path(path: str, base_paths: set = None) -> str:
+    """
+    Validate and sanitize file paths to prevent directory traversal.
+    
+    Args:
+        path: The path to validate
+        base_paths: Set of allowed base paths
+        
+    Returns:
+        Canonical path if valid
+        
+    Raises:
+        SecurityError: If path is unsafe
+    """
+    if not path:
+        raise SecurityError("Path cannot be empty")
+    
+    if base_paths is None:
+        base_paths = ALLOWED_BASE_PATHS
+    
+    # Check for null bytes and dangerous characters
+    dangerous_chars = ['\x00', '|', ';', '&', '$', '`', '<', '>', '"', "'"]
+    for char in dangerous_chars:
+        if char in path:
+            raise SecurityError(f"Dangerous character detected in path: {char}")
+    
+    # Validate path length
+    if len(path) > 4096:
+        raise SecurityError("Path length exceeds maximum allowed")
+    
+    try:
+        # Get canonical path to resolve any traversal attempts
+        canonical_path = os.path.realpath(path)
+        
+        # Check if path is within allowed base paths
+        is_allowed = False
+        for base_path in base_paths:
+            base_canonical = os.path.realpath(base_path)
+            if canonical_path.startswith(base_canonical + os.sep) or canonical_path == base_canonical:
+                is_allowed = True
+                break
+        
+        if not is_allowed:
+            raise SecurityError(f"Path outside allowed directories: {path}")
+        
+        # Additional check for directory traversal patterns
+        if '..' in path or '~' in path:
+            raise SecurityError("Directory traversal attempt detected")
+        
+        return canonical_path
+        
+    except OSError as e:
+        raise SecurityError(f"Invalid path: {e}")
 
 
 async def validate_input_path(
@@ -34,7 +99,7 @@ async def validate_input_path(
     storage_service: StorageService
 ) -> Tuple[str, str]:
     """
-    Validate input file path.
+    Validate input file path with security checks.
     Returns: (backend_name, validated_path)
     """
     if not path:
@@ -46,6 +111,18 @@ async def validate_input_path(
     # Check if backend exists
     if backend_name not in storage_service.backends:
         raise ValueError(f"Unknown storage backend: {backend_name}")
+    
+    # Security validation for local paths
+    if backend_name == 'local':
+        try:
+            file_path = validate_secure_path(file_path)
+        except SecurityError as e:
+            raise ValueError(f"Security validation failed: {e}")
+    
+    # Validate filename components
+    filename = Path(file_path).name
+    if not SAFE_FILENAME_REGEX.match(filename):
+        raise ValueError(f"Invalid filename format: {filename}")
     
     # Validate file extension
     file_ext = Path(file_path).suffix.lower()
@@ -65,7 +142,7 @@ async def validate_output_path(
     storage_service: StorageService
 ) -> Tuple[str, str]:
     """
-    Validate output file path.
+    Validate output file path with security checks.
     Returns: (backend_name, validated_path)
     """
     if not path:
@@ -78,15 +155,29 @@ async def validate_output_path(
     if backend_name not in storage_service.backends:
         raise ValueError(f"Unknown storage backend: {backend_name}")
     
+    # Security validation for local paths
+    if backend_name == 'local':
+        try:
+            file_path = validate_secure_path(file_path)
+        except SecurityError as e:
+            raise ValueError(f"Security validation failed: {e}")
+    
+    # Validate filename components
+    filename = Path(file_path).name
+    if not SAFE_FILENAME_REGEX.match(filename):
+        raise ValueError(f"Invalid filename format: {filename}")
+    
     # Check if backend allows output
     storage_config = storage_service.config
     output_backends = storage_config.get("policies", {}).get("output_backends", [])
     if output_backends and backend_name not in output_backends:
         raise ValueError(f"Backend '{backend_name}' not allowed for output")
     
-    # Validate path format
-    if not PATH_REGEX.match(file_path):
-        raise ValueError(f"Invalid output path format: {file_path}")
+    # Validate file extension for output
+    file_ext = Path(file_path).suffix.lower()
+    allowed_output_extensions = ALLOWED_VIDEO_EXTENSIONS | ALLOWED_AUDIO_EXTENSIONS | ALLOWED_IMAGE_EXTENSIONS
+    if file_ext and file_ext not in allowed_output_extensions:
+        raise ValueError(f"Unsupported output file type: {file_ext}")
     
     # Ensure directory exists
     backend = storage_service.backends[backend_name]
@@ -97,14 +188,31 @@ async def validate_output_path(
 
 
 def validate_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Validate and normalize operations list."""
+    """Validate and normalize operations list with enhanced security checks."""
+    if not operations:
+        raise ValueError("Operations list cannot be empty")
+    
+    if len(operations) > 50:  # Prevent DOS through too many operations
+        raise ValueError("Too many operations specified (maximum 50)")
+    
     validated = []
     
-    for op in operations:
+    for i, op in enumerate(operations):
+        if not isinstance(op, dict):
+            raise ValueError(f"Operation {i} must be a dictionary")
+        
         if "type" not in op:
-            raise ValueError("Operation missing 'type' field")
+            raise ValueError(f"Operation {i} missing 'type' field")
         
         op_type = op["type"]
+        
+        # Validate operation type
+        if not isinstance(op_type, str):
+            raise ValueError(f"Operation {i} type must be a string")
+        
+        # Check for command injection in operation type
+        if not re.match(r'^[a-zA-Z_]+$', op_type):
+            raise SecurityError(f"Invalid operation type format: {op_type}")
         
         if op_type == "trim":
             validated_op = validate_trim_operation(op)
@@ -114,6 +222,8 @@ def validate_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]
             validated_op = validate_filter_operation(op)
         elif op_type == "stream":
             validated_op = validate_stream_operation(op)
+        elif op_type == "transcode":
+            validated_op = validate_transcode_operation(op)
         else:
             raise ValueError(f"Unknown operation type: {op_type}")
         
@@ -123,34 +233,55 @@ def validate_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
 
 def validate_trim_operation(op: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate trim operation."""
+    """Validate trim operation with enhanced security checks."""
     validated = {"type": "trim"}
     
     # Validate start time
     if "start" in op:
         start = op["start"]
         if isinstance(start, (int, float)):
+            if start < 0 or start > 86400:  # Max 24 hours
+                raise ValueError("Start time out of valid range (0-86400 seconds)")
             validated["start"] = float(start)
         elif isinstance(start, str):
+            if len(start) > 20:  # Reasonable length limit
+                raise ValueError("Start time string too long")
             validated["start"] = parse_time_string(start)
         else:
-            raise ValueError("Invalid start time format")
+            raise ValueError("Invalid start time format - must be number or time string")
     
     # Validate duration or end time
     if "duration" in op:
         duration = op["duration"]
         if isinstance(duration, (int, float)):
+            if duration <= 0 or duration > 86400:  # Max 24 hours
+                raise ValueError("Duration out of valid range (0-86400 seconds)")
             validated["duration"] = float(duration)
+        elif isinstance(duration, str):
+            if len(duration) > 20:
+                raise ValueError("Duration string too long")
+            parsed_duration = parse_time_string(duration)
+            if parsed_duration <= 0:
+                raise ValueError("Duration must be positive")
+            validated["duration"] = parsed_duration
         else:
-            raise ValueError("Invalid duration format")
+            raise ValueError("Invalid duration format - must be number or time string")
     elif "end" in op:
         end = op["end"]
         if isinstance(end, (int, float)):
+            if end < 0 or end > 86400:  # Max 24 hours
+                raise ValueError("End time out of valid range (0-86400 seconds)")
             validated["end"] = float(end)
         elif isinstance(end, str):
+            if len(end) > 20:
+                raise ValueError("End time string too long")
             validated["end"] = parse_time_string(end)
         else:
-            raise ValueError("Invalid end time format")
+            raise ValueError("Invalid end time format - must be number or time string")
+    
+    # Validate that we have at least duration or end time
+    if "start" in validated and "duration" not in validated and "end" not in validated:
+        raise ValueError("Trim operation requires either duration or end time when start is specified")
     
     return validated
 
@@ -204,14 +335,159 @@ def validate_stream_operation(op: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def parse_time_string(time_str: str) -> float:
-    """Parse time string in format HH:MM:SS.ms to seconds."""
-    parts = time_str.split(":")
-    if len(parts) == 1:
-        return float(parts[0])
-    elif len(parts) == 2:
-        return float(parts[0]) * 60 + float(parts[1])
-    elif len(parts) == 3:
-        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+def validate_transcode_operation(op: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate transcode operation with enhanced security checks."""
+    validated = {"type": "transcode"}
+    
+    # Allowed video codecs
+    ALLOWED_VIDEO_CODECS = {'h264', 'h265', 'hevc', 'vp8', 'vp9', 'av1', 'libx264', 'libx265', 'copy'}
+    ALLOWED_AUDIO_CODECS = {'aac', 'mp3', 'opus', 'vorbis', 'ac3', 'libfdk_aac', 'copy'}
+    ALLOWED_PRESETS = {'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'}
+    
+    # Validate video codec
+    if "video_codec" in op:
+        codec = op["video_codec"]
+        if not isinstance(codec, str):
+            raise ValueError("Video codec must be a string")
+        if codec not in ALLOWED_VIDEO_CODECS:
+            raise ValueError(f"Invalid video codec: {codec}")
+        validated["video_codec"] = codec
+    
+    # Validate audio codec
+    if "audio_codec" in op:
+        codec = op["audio_codec"]
+        if not isinstance(codec, str):
+            raise ValueError("Audio codec must be a string")
+        if codec not in ALLOWED_AUDIO_CODECS:
+            raise ValueError(f"Invalid audio codec: {codec}")
+        validated["audio_codec"] = codec
+    
+    # Validate preset
+    if "preset" in op:
+        preset = op["preset"]
+        if not isinstance(preset, str):
+            raise ValueError("Preset must be a string")
+        if preset not in ALLOWED_PRESETS:
+            raise ValueError(f"Invalid preset: {preset}")
+        validated["preset"] = preset
+    
+    # Validate bitrates
+    if "video_bitrate" in op:
+        validated["video_bitrate"] = validate_bitrate(op["video_bitrate"])
+    if "audio_bitrate" in op:
+        validated["audio_bitrate"] = validate_bitrate(op["audio_bitrate"])
+    
+    # Validate resolution
+    if "width" in op or "height" in op:
+        width = op.get("width")
+        height = op.get("height")
+        validated_resolution = validate_resolution(width, height)
+        if validated_resolution:
+            validated.update(validated_resolution)
+    
+    # Validate frame rate
+    if "fps" in op:
+        fps = op["fps"]
+        if isinstance(fps, (int, float)):
+            if fps <= 0 or fps > 120:  # Reasonable FPS limits
+                raise ValueError("FPS out of valid range (1-120)")
+            validated["fps"] = float(fps)
+        else:
+            raise ValueError("FPS must be a number")
+    
+    # Validate CRF
+    if "crf" in op:
+        crf = op["crf"]
+        if isinstance(crf, (int, float)):
+            if crf < 0 or crf > 51:  # Standard CRF range
+                raise ValueError("CRF out of valid range (0-51)")
+            validated["crf"] = int(crf)
+        else:
+            raise ValueError("CRF must be a number")
+    
+    return validated
+
+
+def validate_bitrate(bitrate) -> str:
+    """Validate bitrate parameter with security checks."""
+    if isinstance(bitrate, str):
+        # Validate bitrate format
+        if not re.match(r'^\d+[kKmM]?$', bitrate):
+            raise ValueError(f"Invalid bitrate format: {bitrate}")
+        
+        # Parse and validate range
+        if bitrate.lower().endswith('k'):
+            value = int(bitrate[:-1]) * 1000
+        elif bitrate.lower().endswith('m'):
+            value = int(bitrate[:-1]) * 1000000
+        else:
+            value = int(bitrate)
+        
+        # Check reasonable limits (100 kbps to 50 Mbps)
+        if value < 100000 or value > 50000000:
+            raise ValueError("Bitrate out of reasonable range (100k-50M)")
+        
+        return bitrate
+    elif isinstance(bitrate, (int, float)):
+        value = int(bitrate)
+        if value < 100000 or value > 50000000:
+            raise ValueError("Bitrate out of reasonable range (100000-50000000)")
+        return str(value)
     else:
+        raise ValueError("Bitrate must be string or number")
+
+
+def validate_resolution(width, height) -> Dict[str, int]:
+    """Validate video resolution parameters."""
+    result = {}
+    
+    if width is not None:
+        if not isinstance(width, (int, float)):
+            raise ValueError("Width must be a number")
+        width = int(width)
+        if width < 32 or width > 7680:  # Min 32px, max 8K width
+            raise ValueError("Width out of valid range (32-7680)")
+        if width % 2 != 0:  # Must be even for most codecs
+            raise ValueError("Width must be even number")
+        result["width"] = width
+    
+    if height is not None:
+        if not isinstance(height, (int, float)):
+            raise ValueError("Height must be a number")
+        height = int(height)
+        if height < 32 or height > 4320:  # Min 32px, max 8K height
+            raise ValueError("Height out of valid range (32-4320)")
+        if height % 2 != 0:  # Must be even for most codecs
+            raise ValueError("Height must be even number")
+        result["height"] = height
+    
+    return result
+
+
+def parse_time_string(time_str: str) -> float:
+    """Parse time string in format HH:MM:SS.ms to seconds with validation."""
+    if not isinstance(time_str, str):
+        raise ValueError("Time string must be a string")
+    
+    # Security check for time string format
+    if not re.match(r'^(\d{1,2}:)?(\d{1,2}:)?\d{1,2}(\.\d{1,3})?$', time_str):
         raise ValueError(f"Invalid time format: {time_str}")
+    
+    parts = time_str.split(":")
+    try:
+        if len(parts) == 1:
+            seconds = float(parts[0])
+        elif len(parts) == 2:
+            seconds = float(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 3:
+            seconds = float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+        else:
+            raise ValueError(f"Invalid time format: {time_str}")
+        
+        # Validate reasonable time bounds
+        if seconds < 0 or seconds > 86400:  # 24 hours max
+            raise ValueError(f"Time out of reasonable range: {seconds}")
+        
+        return seconds
+    except ValueError as e:
+        raise ValueError(f"Invalid time format: {time_str} - {e}")
