@@ -1,0 +1,281 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+.github
+
+# Documentation
+*.md
+docs/
+*.txt
+LICENSE
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python cache and build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.venv
+
+# Testing
+.tox/
+.nox/
+.coverage
+.pytest_cache/
+cover/
+.hypothesis/
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.nyc_output
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# PyCharm
+.idea/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Storage and data directories (only for build context)
+storage/
+data/
+tmp/
+temp/
+models/
+
+# SSL certificates and keys
+*.pem
+*.key
+*.crt
+*.csr
+ssl/
+certs/
+
+# Monitoring and logs
+monitoring/data/
+prometheus/data/
+grafana/data/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Archive files
+*.tar
+*.zip
+*.gz
+*.rar
+*.7z
+
+# Large media files (should be mounted as volumes)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.m4a
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+*.yaml.bak
+kustomization.yaml
+
+# Helm
+charts/*/charts/
+charts/*/requirements.lock
+
+# Local configuration overrides
+docker-compose.override.yml
+docker-compose.local.yml
+
+# CI/CD files (not needed in container)
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Security files
+.secrets
+secrets/
+*.key
+api-keys.json
+
+# Performance profiling
+*.prof
+*.pprof
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+.tmp/
+tmp/
+temp/
+
+# Node.js specific (if any frontend components)
+package-lock.json
+yarn.lock
+
+# Python specific
+Pipfile
+Pipfile.lock
+poetry.lock
+pyproject.toml
+
+# FastAPI specific
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Alembic (database migrations) - exclude data
+alembic/versions/*.pyc
+
+# Config files with sensitive data
+config/production/
+config/local/
+.env.production
+
+# Development tools
+docker-compose.dev.yml
+docker-compose.test.yml
+
+# AI model files (large files should be downloaded at runtime)
+*.onnx
+*.pt
+*.pth
+*.h5
+*.pb
+
+# FFmpeg specific
+*.ffprobe
+*.ffmpeg
+
+# Temporary processing files
+processing/
+output/
+input/
+uploads/
+
+# Documentation build
+site/
+_build/
+.readthedocs.yml
+
+# Linting and formatting
+.flake8
+.black
+.isort.cfg
+setup.cfg
+tox.ini
+
+# Shell scripts that shouldn't be in container
+scripts/setup.sh
+scripts/install.sh
+install.sh
+setup.sh

@@ -1,5 +1,4 @@
-# Stable API Dockerfile - Long-term solution
-# Fixes psycopg2-binary build issues and standardizes Python version
+# syntax=docker/dockerfile:1
 
 # Build argument for Python version consistency across all containers
 ARG PYTHON_VERSION=3.12.7
@@ -83,8 +82,10 @@ LABEL stage=runtime
 LABEL python.version=${PYTHON_VERSION}
 LABEL app.name="ffmpeg-api"
 LABEL app.component="api"
-LABEL maintainer="Development Team"
+LABEL maintainer="rendiff-team"
 LABEL version="1.0.0"
+LABEL description="FFmpeg API Service"
+LABEL org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -111,6 +112,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process and log management
     logrotate \
     procps \
@@ -136,11 +139,9 @@ RUN chmod +x /tmp/install-ffmpeg.sh && \
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 
-# Create app user with proper security settings
-RUN groupadd -r rendiff && \
-    useradd -r -g rendiff -m -d /home/rendiff -s /bin/bash rendiff && \
-    usermod -u 1000 rendiff && \
-    groupmod -g 1000 rendiff
+# Create app user with specific UID/GID for better security
+RUN groupadd -r -g 1000 rendiff \
+    && useradd -r -m -u 1000 -g rendiff -s /bin/bash rendiff
 
 # Create application directories with proper ownership and permissions
 RUN mkdir -p \
@@ -149,6 +150,7 @@ RUN mkdir -p \
     /app/temp \
     /app/metrics \
     /app/uploads \
+    /app/cache \
     /storage \
     /config \
     /data \
@@ -178,18 +180,6 @@ COPY --chown=rendiff:rendiff scripts/ /app/scripts/
 
 # Ensure scripts are executable
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
-
-# Create additional necessary directories
-RUN mkdir -p \
-    /app/logs \
-    /app/temp \
-    /app/metrics \
-    /app/cache \
-    && chown -R rendiff:rendiff \
-    /app/logs \
-    /app/temp \
-    /app/metrics \
-    /app/cache
 
 # Set up log rotation
 RUN echo '/app/logs/*.log {\n\
@@ -247,6 +237,9 @@ echo "Virtual environment: $VIRTUAL_ENV"\n\
 echo "Python path: $PYTHONPATH"\n\
 echo "=========================================="\n\
 ' > /app/startup-check.sh && chmod +x /app/startup-check.sh
+
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Default command with startup validation
 CMD ["/bin/bash", "-c", "/app/startup-check.sh && exec /app/scripts/docker-entrypoint.sh api"]

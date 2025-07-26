@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Build arguments for consistency and stability
 ARG WORKER_TYPE=cpu
 ARG PYTHON_VERSION=3.12.7
@@ -23,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     xz-utils \
+    pkg-config \
     # Cleanup
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -31,12 +34,19 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements
+# Copy requirements first for better layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip==24.* \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Runtime stage - use NVIDIA CUDA base for GPU support
-FROM nvidia/cuda:12.3.0-runtime-ubuntu22.04 AS runtime-gpu
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime-gpu
+
+# Set labels
+LABEL maintainer="rendiff-team" \
+      version="1.0" \
+      description="FFmpeg API Worker (GPU)" \
+      org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
 # Install Python with consistent version
 RUN apt-get update && apt-get install -y \
@@ -59,6 +69,8 @@ RUN apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process management
     procps \
     # Cleanup
@@ -67,12 +79,18 @@ RUN apt-get install -y \
 
 # Install latest FFmpeg from BtbN/FFmpeg-Builds
 COPY docker/install-ffmpeg.sh /tmp/install-ffmpeg.sh
-RUN chmod +x /tmp/install-ffmpeg.sh && \
-    /tmp/install-ffmpeg.sh && \
-    rm /tmp/install-ffmpeg.sh
+RUN chmod +x /tmp/install-ffmpeg.sh \
+    && /tmp/install-ffmpeg.sh \
+    && rm /tmp/install-ffmpeg.sh
 
 # Runtime stage - standard for CPU with stable Python version
 FROM python:${PYTHON_VERSION}-slim AS runtime-cpu
+
+# Set labels
+LABEL maintainer="rendiff-team" \
+      version="1.0" \
+      description="FFmpeg API Worker (CPU)" \
+      org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
 # Install runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
@@ -86,6 +104,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process management
     procps \
     # Cleanup
@@ -94,9 +114,9 @@ RUN apt-get update && apt-get install -y \
 
 # Install latest FFmpeg from BtbN/FFmpeg-Builds
 COPY docker/install-ffmpeg.sh /tmp/install-ffmpeg.sh
-RUN chmod +x /tmp/install-ffmpeg.sh && \
-    /tmp/install-ffmpeg.sh && \
-    rm /tmp/install-ffmpeg.sh
+RUN chmod +x /tmp/install-ffmpeg.sh \
+    && /tmp/install-ffmpeg.sh \
+    && rm /tmp/install-ffmpeg.sh
 
 # Select runtime based on build arg (ARG declared at top)
 FROM runtime-${WORKER_TYPE} AS runtime
@@ -105,12 +125,13 @@ FROM runtime-${WORKER_TYPE} AS runtime
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Create app user
-RUN useradd -m -u 1000 -s /bin/bash rendiff
+# Create app user with specific UID/GID for better security
+RUN groupadd -r -g 1000 rendiff \
+    && useradd -r -m -u 1000 -g rendiff -s /bin/bash rendiff
 
-# Create directories
-RUN mkdir -p /app /storage /config /data /tmp/rendiff && \
-    chown -R rendiff:rendiff /app /storage /config /data /tmp/rendiff
+# Create directories with proper permissions
+RUN mkdir -p /app /storage /config /data /tmp/rendiff /app/logs \
+    && chown -R rendiff:rendiff /app /storage /config /data /tmp/rendiff
 
 # Set working directory
 WORKDIR /app
@@ -120,6 +141,10 @@ COPY --chown=rendiff:rendiff api/ /app/api/
 COPY --chown=rendiff:rendiff worker/ /app/worker/
 COPY --chown=rendiff:rendiff storage/ /app/storage/
 
+# Copy scripts for setup and maintenance
+COPY --chown=rendiff:rendiff scripts/ /app/scripts/
+RUN chmod +x /app/scripts/*.sh
+
 # Switch to non-root user
 USER rendiff
 
@@ -127,12 +152,12 @@ USER rendiff
 ENV NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
 ENV NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-video,compute,utility}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD celery -A worker.main inspect ping || exit 1
+# Health check with better configuration
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
+    CMD celery -A worker.main inspect ping -t 10 || exit 1
 
-# Copy scripts for setup and maintenance
-COPY --chown=rendiff:rendiff scripts/ /app/scripts/
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Run the worker
 CMD ["/app/scripts/docker-entrypoint.sh", "worker"]
