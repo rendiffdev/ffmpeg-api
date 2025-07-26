@@ -120,20 +120,59 @@ class HardwareAcceleration:
 
 
 class FFmpegCommandBuilder:
-    """Build FFmpeg commands from operations and options."""
+    """Build FFmpeg commands from operations and options with security validation."""
+    
+    # Security whitelists for command injection prevention
+    ALLOWED_CODECS = {
+        'video': {'h264', 'h265', 'hevc', 'vp8', 'vp9', 'av1', 'libx264', 'libx265', 'copy'},
+        'audio': {'aac', 'mp3', 'opus', 'vorbis', 'ac3', 'libfdk_aac', 'copy'}
+    }
+    
+    ALLOWED_FILTERS = {
+        'scale', 'crop', 'overlay', 'eq', 'hqdn3d', 'unsharp', 'format', 'colorchannelmixer'
+    }
+    
+    ALLOWED_PRESETS = {
+        'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 
+        'slow', 'slower', 'veryslow', 'placebo'
+    }
+    
+    ALLOWED_PIXEL_FORMATS = {
+        'yuv420p', 'yuv422p', 'yuv444p', 'rgb24', 'rgba', 'bgr24', 'bgra'
+    }
+    
+    # Safe parameter ranges
+    SAFE_RANGES = {
+        'crf': (0, 51),
+        'bitrate_min': 100,    # 100 kbps minimum
+        'bitrate_max': 50000,  # 50 Mbps maximum
+        'fps_min': 1,
+        'fps_max': 120,
+        'width_min': 32,
+        'width_max': 7680,     # 8K max
+        'height_min': 32,
+        'height_max': 4320,    # 8K max
+        'threads_max': 64
+    }
     
     def __init__(self, hardware_caps: Optional[Dict[str, bool]] = None):
         self.hardware_caps = hardware_caps or {}
+        logger.info("FFmpegCommandBuilder initialized with security validation")
     
     def build_command(self, input_path: str, output_path: str, 
                      options: Dict[str, Any], operations: List[Dict[str, Any]]) -> List[str]:
-        """Build complete FFmpeg command from operations."""
+        """Build complete FFmpeg command from operations with security validation."""
+        # Validate all inputs first
+        self._validate_paths(input_path, output_path)
+        self._validate_options(options)
+        self._validate_operations(operations)
+        
         cmd = ['ffmpeg', '-y']  # -y to overwrite output files
         
         # Add hardware acceleration if available
         cmd.extend(self._add_hardware_acceleration())
         
-        # Add input
+        # Add input (already validated)
         cmd.extend(['-i', input_path])
         
         # Add operations
@@ -166,10 +205,10 @@ class FFmpegCommandBuilder:
         # Add global options
         cmd.extend(self._handle_global_options(options))
         
-        # Add output
+        # Add output (already validated)
         cmd.append(output_path)
         
-        logger.info("Built FFmpeg command", command=' '.join(cmd))
+        logger.info("Built secure FFmpeg command", command=' '.join(cmd))
         return cmd
     
     def _add_hardware_acceleration(self) -> List[str]:
@@ -183,6 +222,214 @@ class FFmpegCommandBuilder:
         elif self.hardware_caps.get('videotoolbox'):
             return ['-hwaccel', 'videotoolbox']
         return []
+    
+    def _validate_paths(self, input_path: str, output_path: str):
+        """Validate input and output paths for security."""
+        import os
+        
+        # Check for null bytes and dangerous characters
+        dangerous_chars = ['\x00', '|', ';', '&', '$', '`', '(', ')', '<', '>', '"', "'"]
+        for path in [input_path, output_path]:
+            for char in dangerous_chars:
+                if char in path:
+                    raise FFmpegCommandError(f"Dangerous character detected in path: {char}")
+        
+        # Validate path length
+        if len(input_path) > 4096 or len(output_path) > 4096:
+            raise FFmpegCommandError("Path length exceeds maximum allowed")
+        
+        # Ensure paths are absolute and normalized
+        try:
+            input_normalized = os.path.normpath(input_path)
+            output_normalized = os.path.normpath(output_path)
+            
+            # Check for directory traversal attempts
+            if '..' in input_normalized or '..' in output_normalized:
+                raise FFmpegCommandError("Directory traversal attempt detected")
+                
+        except Exception as e:
+            raise FFmpegCommandError(f"Path validation failed: {e}")
+    
+    def _validate_options(self, options: Dict[str, Any]):
+        """Validate global options for security."""
+        if not isinstance(options, dict):
+            raise FFmpegCommandError("Options must be a dictionary")
+        
+        # Validate each option
+        for key, value in options.items():
+            if not isinstance(key, str):
+                raise FFmpegCommandError("Option keys must be strings")
+            
+            # Check for command injection in option values
+            if isinstance(value, str):
+                self._validate_string_parameter(value, f"option_{key}")
+    
+    def _validate_operations(self, operations: List[Dict[str, Any]]):
+        """Validate operations list for security."""
+        if not isinstance(operations, list):
+            raise FFmpegCommandError("Operations must be a list")
+        
+        allowed_operation_types = {'transcode', 'trim', 'watermark', 'filter', 'stream_map'}
+        
+        for i, operation in enumerate(operations):
+            if not isinstance(operation, dict):
+                raise FFmpegCommandError(f"Operation {i} must be a dictionary")
+            
+            op_type = operation.get('type')
+            if op_type not in allowed_operation_types:
+                raise FFmpegCommandError(f"Unknown operation type: {op_type}")
+            
+            # Validate operation parameters
+            params = operation.get('params', {})
+            if not isinstance(params, dict):
+                raise FFmpegCommandError(f"Operation {i} params must be a dictionary")
+            
+            self._validate_operation_params(op_type, params)
+    
+    def _validate_operation_params(self, op_type: str, params: Dict[str, Any]):
+        """Validate operation-specific parameters."""
+        if op_type == 'transcode':
+            self._validate_transcode_params(params)
+        elif op_type == 'trim':
+            self._validate_trim_params(params)
+        elif op_type == 'filter':
+            self._validate_filter_params(params)
+        elif op_type == 'watermark':
+            self._validate_watermark_params(params)
+    
+    def _validate_transcode_params(self, params: Dict[str, Any]):
+        """Validate transcoding parameters."""
+        if 'video_codec' in params:
+            codec = params['video_codec']
+            if codec not in self.ALLOWED_CODECS['video']:
+                raise FFmpegCommandError(f"Invalid video codec: {codec}")
+        
+        if 'audio_codec' in params:
+            codec = params['audio_codec']
+            if codec not in self.ALLOWED_CODECS['audio']:
+                raise FFmpegCommandError(f"Invalid audio codec: {codec}")
+        
+        if 'preset' in params:
+            preset = params['preset']
+            if preset not in self.ALLOWED_PRESETS:
+                raise FFmpegCommandError(f"Invalid preset: {preset}")
+        
+        # Validate numeric parameters
+        self._validate_numeric_param(params.get('crf'), 'crf', self.SAFE_RANGES['crf'])
+        self._validate_bitrate(params.get('video_bitrate'), 'video_bitrate')
+        self._validate_bitrate(params.get('audio_bitrate'), 'audio_bitrate')
+        self._validate_numeric_param(params.get('fps'), 'fps', (self.SAFE_RANGES['fps_min'], self.SAFE_RANGES['fps_max']))
+        self._validate_resolution(params.get('width'), params.get('height'))
+    
+    def _validate_trim_params(self, params: Dict[str, Any]):
+        """Validate trim parameters."""
+        for time_param in ['start_time', 'duration', 'end_time']:
+            if time_param in params:
+                value = params[time_param]
+                if isinstance(value, (int, float)):
+                    if value < 0 or value > 86400:  # Max 24 hours
+                        raise FFmpegCommandError(f"Invalid {time_param}: {value}")
+                elif isinstance(value, str):
+                    self._validate_time_string(value, time_param)
+    
+    def _validate_filter_params(self, params: Dict[str, Any]):
+        """Validate filter parameters."""
+        for key, value in params.items():
+            if isinstance(value, str):
+                self._validate_string_parameter(value, f"filter_{key}")
+            elif isinstance(value, (int, float)):
+                if abs(value) > 1000:  # Reasonable limit for filter values
+                    raise FFmpegCommandError(f"Filter parameter {key} out of range: {value}")
+    
+    def _validate_watermark_params(self, params: Dict[str, Any]):
+        """Validate watermark parameters."""
+        # Validate position values
+        for pos_param in ['x', 'y']:
+            if pos_param in params:
+                value = params[pos_param]
+                if isinstance(value, str):
+                    self._validate_string_parameter(value, f"watermark_{pos_param}")
+        
+        # Validate opacity
+        if 'opacity' in params:
+            opacity = params['opacity']
+            if not isinstance(opacity, (int, float)) or opacity < 0 or opacity > 1:
+                raise FFmpegCommandError(f"Invalid opacity: {opacity}")
+    
+    def _validate_string_parameter(self, value: str, param_name: str):
+        """Validate string parameters for command injection."""
+        if not isinstance(value, str):
+            return
+        
+        # Check for command injection patterns
+        dangerous_patterns = [
+            ';', '|', '&', '$', '`', '$(', '${', '<(', '>(', '\n', '\r'
+        ]
+        
+        for pattern in dangerous_patterns:
+            if pattern in value:
+                raise FFmpegCommandError(f"Dangerous pattern in {param_name}: {pattern}")
+        
+        # Check length
+        if len(value) > 1024:
+            raise FFmpegCommandError(f"Parameter {param_name} too long")
+    
+    def _validate_numeric_param(self, value, param_name: str, valid_range: tuple):
+        """Validate numeric parameters."""
+        if value is None:
+            return
+        
+        if not isinstance(value, (int, float)):
+            raise FFmpegCommandError(f"Parameter {param_name} must be numeric")
+        
+        min_val, max_val = valid_range
+        if value < min_val or value > max_val:
+            raise FFmpegCommandError(f"Parameter {param_name} out of range [{min_val}, {max_val}]: {value}")
+    
+    def _validate_bitrate(self, bitrate, param_name: str):
+        """Validate bitrate parameters."""
+        if bitrate is None:
+            return
+        
+        if isinstance(bitrate, str):
+            # Parse bitrate strings like "1000k", "5M"
+            import re
+            match = re.match(r'^(\d+)([kKmM]?)$', bitrate)
+            if not match:
+                raise FFmpegCommandError(f"Invalid bitrate format: {bitrate}")
+            
+            value, unit = match.groups()
+            value = int(value)
+            
+            if unit.lower() == 'k':
+                value *= 1000
+            elif unit.lower() == 'm':
+                value *= 1000000
+            
+            if value < self.SAFE_RANGES['bitrate_min'] or value > self.SAFE_RANGES['bitrate_max']:
+                raise FFmpegCommandError(f"Bitrate out of safe range: {bitrate}")
+        elif isinstance(bitrate, (int, float)):
+            if bitrate < self.SAFE_RANGES['bitrate_min'] or bitrate > self.SAFE_RANGES['bitrate_max']:
+                raise FFmpegCommandError(f"Bitrate out of safe range: {bitrate}")
+    
+    def _validate_resolution(self, width, height):
+        """Validate resolution parameters."""
+        if width is not None:
+            self._validate_numeric_param(width, 'width', 
+                                       (self.SAFE_RANGES['width_min'], self.SAFE_RANGES['width_max']))
+        
+        if height is not None:
+            self._validate_numeric_param(height, 'height', 
+                                       (self.SAFE_RANGES['height_min'], self.SAFE_RANGES['height_max']))
+    
+    def _validate_time_string(self, time_str: str, param_name: str):
+        """Validate time string format."""
+        import re
+        
+        # Allow formats: HH:MM:SS, MM:SS, SS, HH:MM:SS.ms
+        time_pattern = r'^(\d{1,2}:)?(\d{1,2}:)?\d{1,2}(\.\d{1,3})?$'
+        if not re.match(time_pattern, time_str):
+            raise FFmpegCommandError(f"Invalid time format for {param_name}: {time_str}")
     
     def _handle_transcode(self, params: Dict[str, Any]) -> List[str]:
         """Handle video transcoding parameters."""
