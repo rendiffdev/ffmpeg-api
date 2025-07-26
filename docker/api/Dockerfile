@@ -1,12 +1,4 @@
-<<<<<<< HEAD
 # syntax=docker/dockerfile:1
-
-# Build stage
-FROM python:3.12-slim AS builder
-=======
-# Stable API Dockerfile - Long-term solution
-# Fixes psycopg2-binary build issues and standardizes Python version
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
 
 # Build argument for Python version consistency across all containers
 ARG PYTHON_VERSION=3.12.7
@@ -28,12 +20,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install comprehensive build dependencies (CRITICAL FIX for psycopg2)
 RUN apt-get update && apt-get install -y \
-<<<<<<< HEAD
-    gcc=4:11.* \
-    g++=4:11.* \
-    git=1:2.34.* \
-    pkg-config=0.29.* \
-=======
     # Compilation tools
     gcc \
     g++ \
@@ -57,7 +43,6 @@ RUN apt-get update && apt-get install -y \
     # Package management
     pkg-config \
     # Cleanup to reduce layer size
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -65,32 +50,6 @@ RUN apt-get update && apt-get install -y \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-<<<<<<< HEAD
-# Copy requirements first for better layer caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip==24.* \
-    && pip install --no-cache-dir -r requirements.txt
-
-# Runtime stage
-FROM python:3.12-slim AS runtime
-
-# Set labels for better maintainability
-LABEL maintainer="rendiff-team" \
-      version="1.0" \
-      description="FFmpeg API Service" \
-      org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
-
-# Install runtime dependencies with specific versions
-RUN apt-get update && apt-get install -y \
-    curl=7.81.* \
-    xz-utils=5.2.* \
-    netcat-openbsd=1.217.* \
-    postgresql-client=14+* \
-    ca-certificates=20211016* \
-    tini=0.19.* \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-=======
 # Upgrade pip and essential tools to latest stable versions
 RUN pip install --upgrade \
     pip==24.0 \
@@ -123,8 +82,10 @@ LABEL stage=runtime
 LABEL python.version=${PYTHON_VERSION}
 LABEL app.name="ffmpeg-api"
 LABEL app.component="api"
-LABEL maintainer="Development Team"
+LABEL maintainer="rendiff-team"
 LABEL version="1.0.0"
+LABEL description="FFmpeg API Service"
+LABEL org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -151,6 +112,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process and log management
     logrotate \
     procps \
@@ -164,39 +127,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && apt-get autoremove -y
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
 
 # Install FFmpeg using standardized script
 COPY docker/install-ffmpeg.sh /tmp/install-ffmpeg.sh
-<<<<<<< HEAD
-RUN chmod +x /tmp/install-ffmpeg.sh \
-    && /tmp/install-ffmpeg.sh \
-    && rm /tmp/install-ffmpeg.sh
-=======
 RUN chmod +x /tmp/install-ffmpeg.sh && \
     /tmp/install-ffmpeg.sh && \
     rm /tmp/install-ffmpeg.sh && \
     # Verify FFmpeg installation
     ffmpeg -version | head -1
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 
-<<<<<<< HEAD
 # Create app user with specific UID/GID for better security
 RUN groupadd -r -g 1000 rendiff \
     && useradd -r -m -u 1000 -g rendiff -s /bin/bash rendiff
-
-# Create directories with proper permissions
-RUN mkdir -p /app /storage /config /data /app/logs /app/temp /app/metrics \
-    && chown -R rendiff:rendiff /app /storage /config /data
-=======
-# Create app user with proper security settings
-RUN groupadd -r rendiff && \
-    useradd -r -g rendiff -m -d /home/rendiff -s /bin/bash rendiff && \
-    usermod -u 1000 rendiff && \
-    groupmod -g 1000 rendiff
 
 # Create application directories with proper ownership and permissions
 RUN mkdir -p \
@@ -205,6 +150,7 @@ RUN mkdir -p \
     /app/temp \
     /app/metrics \
     /app/uploads \
+    /app/cache \
     /storage \
     /config \
     /data \
@@ -219,7 +165,6 @@ RUN mkdir -p \
     && chmod -R 775 /tmp/rendiff \
     && chmod -R 755 /storage \
     && chmod -R 755 /config
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
 
 # Set working directory
 WORKDIR /app
@@ -232,25 +177,9 @@ COPY --chown=rendiff:rendiff alembic.ini /app/alembic.ini
 
 # Copy scripts for setup and maintenance
 COPY --chown=rendiff:rendiff scripts/ /app/scripts/
-<<<<<<< HEAD
-RUN chmod +x /app/scripts/*.sh
-=======
 
 # Ensure scripts are executable
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
-
-# Create additional necessary directories
-RUN mkdir -p \
-    /app/logs \
-    /app/temp \
-    /app/metrics \
-    /app/cache \
-    && chown -R rendiff:rendiff \
-    /app/logs \
-    /app/temp \
-    /app/metrics \
-    /app/cache
 
 # Set up log rotation
 RUN echo '/app/logs/*.log {\n\
@@ -293,18 +222,9 @@ USER rendiff
 EXPOSE 8000
 EXPOSE 9000
 
-<<<<<<< HEAD
-# Health check with better configuration
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f -s http://localhost:8000/api/v1/health || exit 1
-
-# Use tini as PID 1 for proper signal handling
-ENTRYPOINT ["/usr/bin/tini", "--"]
-=======
 # Comprehensive health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD /usr/local/bin/health-check
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
 
 # Add startup validation
 RUN echo '#!/bin/bash\n\
@@ -317,6 +237,9 @@ echo "Virtual environment: $VIRTUAL_ENV"\n\
 echo "Python path: $PYTHONPATH"\n\
 echo "=========================================="\n\
 ' > /app/startup-check.sh && chmod +x /app/startup-check.sh
+
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Default command with startup validation
 CMD ["/bin/bash", "-c", "/app/startup-check.sh && exec /app/scripts/docker-entrypoint.sh api"]

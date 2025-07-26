@@ -1,16 +1,5 @@
-<<<<<<< HEAD
 # syntax=docker/dockerfile:1
 
-# Build stage
-FROM python:3.12-slim AS builder
-
-# Install build dependencies with specific versions
-RUN apt-get update && apt-get install -y \
-    gcc=4:11.* \
-    g++=4:11.* \
-    git=1:2.34.* \
-    pkg-config=0.29.* \
-=======
 # Build arguments for consistency and stability
 ARG WORKER_TYPE=cpu
 ARG PYTHON_VERSION=3.12.7
@@ -36,8 +25,8 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     xz-utils \
+    pkg-config \
     # Cleanup
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -53,25 +42,12 @@ RUN pip install --no-cache-dir --upgrade pip==24.* \
 # Runtime stage - use NVIDIA CUDA base for GPU support
 FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime-gpu
 
-<<<<<<< HEAD
 # Set labels
 LABEL maintainer="rendiff-team" \
       version="1.0" \
       description="FFmpeg API Worker (GPU)" \
       org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
-# Install Python and dependencies with specific versions
-RUN apt-get update && apt-get install -y \
-    python3.12=3.12.* \
-    python3.12-venv=3.12.* \
-    python3-pip=22.* \
-    curl=7.81.* \
-    xz-utils=5.2.* \
-    netcat-openbsd=1.217.* \
-    postgresql-client=14+* \
-    ca-certificates=20211016* \
-    tini=0.19.* \
-=======
 # Install Python with consistent version
 RUN apt-get update && apt-get install -y \
     software-properties-common \
@@ -93,10 +69,11 @@ RUN apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process management
     procps \
     # Cleanup
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -109,22 +86,12 @@ RUN chmod +x /tmp/install-ffmpeg.sh \
 # Runtime stage - standard for CPU with stable Python version
 FROM python:${PYTHON_VERSION}-slim AS runtime-cpu
 
-<<<<<<< HEAD
 # Set labels
 LABEL maintainer="rendiff-team" \
       version="1.0" \
       description="FFmpeg API Worker (CPU)" \
       org.opencontainers.image.source="https://github.com/rendiffdev/ffmpeg-api"
 
-# Install dependencies with specific versions
-RUN apt-get update && apt-get install -y \
-    curl=7.81.* \
-    xz-utils=5.2.* \
-    netcat-openbsd=1.217.* \
-    postgresql-client=14+* \
-    ca-certificates=20211016* \
-    tini=0.19.* \
-=======
 # Install runtime dependencies (no build tools)
 RUN apt-get update && apt-get install -y \
     # PostgreSQL runtime libraries (not dev headers)
@@ -137,10 +104,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     xz-utils \
     netcat-openbsd \
+    ca-certificates \
+    tini \
     # Process management
     procps \
     # Cleanup
->>>>>>> 7cb959598bda0189ac7de604f584221ee7ac53fb
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -173,16 +141,16 @@ COPY --chown=rendiff:rendiff api/ /app/api/
 COPY --chown=rendiff:rendiff worker/ /app/worker/
 COPY --chown=rendiff:rendiff storage/ /app/storage/
 
+# Copy scripts for setup and maintenance
+COPY --chown=rendiff:rendiff scripts/ /app/scripts/
+RUN chmod +x /app/scripts/*.sh
+
 # Switch to non-root user
 USER rendiff
 
 # Set environment for GPU support
 ENV NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
 ENV NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-video,compute,utility}
-
-# Copy scripts for setup and maintenance
-COPY --chown=rendiff:rendiff scripts/ /app/scripts/
-RUN chmod +x /app/scripts/*.sh
 
 # Health check with better configuration
 HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
