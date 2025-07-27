@@ -77,18 +77,13 @@ jobs:
         include:
           - component: api
             dockerfile: docker/api/Dockerfile.new
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}"
           - component: worker-cpu
             dockerfile: docker/worker/Dockerfile
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-              WORKER_TYPE=cpu
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}\nWORKER_TYPE=cpu"
           - component: worker-gpu
             dockerfile: docker/worker/Dockerfile
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-              WORKER_TYPE=gpu
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}\nWORKER_TYPE=gpu"
     
     steps:
     - name: Checkout code
@@ -155,8 +150,7 @@ jobs:
       with:
         context: .
         file: docker/api/Dockerfile.new
-        build-args: |
-          PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+        build-args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}"
         tags: ffmpeg-api:ffmpeg-test
         load: true
     
@@ -226,8 +220,7 @@ jobs:
       with:
         context: .
         file: docker/api/Dockerfile.new
-        build-args: |
-          PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+        build-args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}"
         tags: ffmpeg-api:security-scan
         load: true
     
