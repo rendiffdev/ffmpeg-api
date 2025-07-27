@@ -1,13 +1,15 @@
 """
-Configuration management for Rendiff API
-"""
-from functools import lru_cache
-from typing import List, Optional
-import os
-from pathlib import Path
+Production-grade configuration management for Rendiff FFmpeg API.
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+Handles all application settings with validation, type safety, and environment-based configuration.
+"""
+import os
+from functools import lru_cache
+from pathlib import Path
+from typing import List, Optional
+
 from pydantic import Field, validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -57,12 +59,17 @@ class Settings(BaseSettings):
     FFMPEG_CRF: int = 23
     FFMPEG_HARDWARE_ACCELERATION: str = "auto"
     
-    # Security
+    # Security & Rate Limiting
     API_KEY_HEADER: str = "X-API-Key"
     ENABLE_API_KEYS: bool = True
     ENABLE_IP_WHITELIST: bool = False
     IP_WHITELIST: str = "10.0.0.0/8,192.168.0.0/16"
     ADMIN_API_KEYS: str = ""  # Comma-separated list of admin API keys
+    
+    # Rate Limiting
+    ENABLE_RATE_LIMITING: bool = True
+    RATE_LIMIT_CALLS: int = 2000
+    RATE_LIMIT_PERIOD: int = 3600  # seconds
     
     # CORS
     CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost", "https://localhost"])

@@ -8,7 +8,7 @@ Complete setup guide for the Rendiff FFmpeg API platform. This guide covers all 
 2. [Setup Options](#setup-options)
 3. [Development Setup](#development-setup)
 4. [Production Setup](#production-setup)
-5. [GenAI Setup](#genai-setup)
+5. [GPU Setup](#gpu-setup)
 6. [HTTPS/SSL Configuration](#httpssl-configuration)
 7. [Configuration Management](#configuration-management)
 8. [Troubleshooting](#troubleshooting)
@@ -27,7 +27,7 @@ cd ffmpeg-api
 ./setup.sh --development             # Quick dev setup
 ./setup.sh --interactive             # Interactive setup wizard
 ./setup.sh --standard                # Standard production
-./setup.sh --genai                   # AI-enabled production
+./setup.sh --gpu                    # Hardware accelerated production
 ./setup.sh --interactive             # Full configuration wizard
 ```
 
@@ -48,7 +48,7 @@ cd ffmpeg-api
 - API available at http://localhost:8000
 
 ### 🏭 Standard Production
-**Best for: Production deployment without AI features**
+**Best for: CPU-based production deployment**
 
 ```bash
 ./setup.sh --standard
@@ -65,21 +65,21 @@ cd ffmpeg-api
 - 2 CPU workers
 - Automatic HTTP to HTTPS redirect
 
-### 🤖 GenAI Production
-**Best for: AI-enhanced video processing**
+### ⚡ GPU Hardware Accelerated Production
+**Best for: Hardware-accelerated video processing**
 
 ```bash
-./setup.sh --genai
+./setup.sh --gpu
 ```
 
 **What you get:**
 - Everything from Standard Production
 - **HTTPS by default (self-signed certificate)**
-- GPU support for AI processing
-- AI models (Real-ESRGAN, VideoMAE, etc.)
-- GenAI workers
-- Enhanced analysis capabilities
-- AI endpoints at `/api/genai/v1/*`
+- GPU support for hardware acceleration
+- NVENC/NVDEC encoding support
+- GPU workers for accelerated processing
+- Enhanced performance capabilities
+- Hardware acceleration endpoints at `/api/v1/gpu/*`
 
 ### 🛡️ Production with Let's Encrypt HTTPS
 **Best for: Internet-facing deployments with domain names**
@@ -147,16 +147,16 @@ open http://localhost:8000/docs
 ### Development Commands
 ```bash
 # View logs
-docker-compose logs -f api
+docker compose logs -f api
 
 # Restart API only
-docker-compose restart api
+docker compose restart api
 
 # Access database
-docker-compose exec api python -c "from api.database import engine; print(engine.url)"
+docker compose exec api python -c "from api.database import engine; print(engine.url)"
 
 # Run tests
-docker-compose exec api pytest
+docker compose exec api pytest
 
 # Check status
 ./setup.sh --status
@@ -182,7 +182,7 @@ Enterprise-ready deployment with full security and monitoring:
 ./setup.sh --validate
 
 # 3. Check all services
-docker-compose ps
+docker compose ps
 ```
 
 ### Production Features
@@ -224,10 +224,10 @@ curl -I https://your-domain.com/api/v1/health
 ./scripts/backup.sh create
 
 # View production logs
-docker-compose logs -f
+docker compose logs -f
 
 # Scale workers
-docker-compose up -d --scale worker-cpu=4
+docker compose up -d --scale worker-cpu=4
 ```
 
 ## GenAI Setup
@@ -250,7 +250,7 @@ nvidia-smi
 ./setup.sh --genai
 
 # 3. Wait for model downloads (may take 10-30 minutes)
-docker-compose logs -f model-downloader
+docker compose logs -f model-downloader
 
 # 4. Verify GenAI endpoints
 curl https://localhost/api/genai/v1/health
@@ -267,16 +267,16 @@ curl https://localhost/api/genai/v1/health
 ### GenAI Commands
 ```bash
 # Check GPU utilization
-docker-compose exec worker-genai nvidia-smi
+docker compose exec worker-genai nvidia-smi
 
 # Download additional models
-docker-compose --profile setup run model-downloader
+docker compose --profile setup run model-downloader
 
 # Scale GenAI workers
-docker-compose up -d --scale worker-genai=2
+docker compose up -d --scale worker-genai=2
 
 # View GenAI logs
-docker-compose logs -f worker-genai
+docker compose logs -f worker-genai
 ```
 
 ### AI Endpoints
@@ -358,7 +358,7 @@ export CERTBOT_EMAIL=admin@example.com
 ./scripts/enhanced-ssl-manager.sh install-commercial /path/to/cert.crt /path/to/private.key
 
 # 3. Restart services to apply certificate
-docker-compose restart traefik
+docker compose restart traefik
 ```
 
 ### Manual SSL Management
@@ -445,7 +445,7 @@ cat .env
 nano .env
 
 # Reload configuration
-docker-compose restart api
+docker compose restart api
 ```
 
 ### Key Configuration Files
@@ -496,7 +496,7 @@ storage:
 docker ps -a
 
 # View error logs
-docker-compose logs api
+docker compose logs api
 
 # Validate configuration
 ./setup.sh --validate
@@ -526,22 +526,22 @@ netstat -tulpn | grep :8000
 docker network ls
 
 # Test internal connectivity
-docker-compose exec api curl redis:6379
+docker compose exec api curl redis:6379
 ```
 
 #### 💾 Database Issues
 ```bash
 # Check database status
-docker-compose exec postgres pg_isready
+docker compose exec postgres pg_isready
 
 # View database logs
-docker-compose logs postgres
+docker compose logs postgres
 
 # Run migrations manually
-docker-compose exec api alembic upgrade head
+docker compose exec api alembic upgrade head
 
 # Reset database (destructive)
-docker-compose down -v
+docker compose down -v
 ./setup.sh --standard
 ```
 
@@ -551,13 +551,13 @@ docker-compose down -v
 nvidia-smi
 
 # Verify CUDA in container
-docker-compose exec worker-genai nvidia-smi
+docker compose exec worker-genai nvidia-smi
 
 # Check model downloads
 ls -la models/genai/
 
 # Restart GenAI services
-docker-compose restart worker-genai
+docker compose restart worker-genai
 ```
 
 ### Performance Optimization
@@ -565,32 +565,32 @@ docker-compose restart worker-genai
 #### Resource Scaling
 ```bash
 # Scale API instances
-docker-compose up -d --scale api=3
+docker compose up -d --scale api=3
 
 # Scale CPU workers
-docker-compose up -d --scale worker-cpu=4
+docker compose up -d --scale worker-cpu=4
 
 # Scale GenAI workers (if GPU memory allows)
-docker-compose up -d --scale worker-genai=2
+docker compose up -d --scale worker-genai=2
 ```
 
 #### Database Optimization
 ```bash
 # Monitor database performance
-docker-compose exec postgres psql -U ffmpeg_user -d ffmpeg_api -c "
+docker compose exec postgres psql -U ffmpeg_user -d ffmpeg_api -c "
 SELECT query, mean_time, calls 
 FROM pg_stat_statements 
 ORDER BY mean_time DESC LIMIT 10;"
 
 # Analyze table usage
-docker-compose exec postgres psql -U ffmpeg_user -d ffmpeg_api -c "
+docker compose exec postgres psql -U ffmpeg_user -d ffmpeg_api -c "
 SELECT schemaname,tablename,attname,n_distinct,correlation 
 FROM pg_stats WHERE tablename='jobs';"
 ```
 
 ### Getting Help
 
-1. **Check logs**: `docker-compose logs -f [service]`
+1. **Check logs**: `docker compose logs -f [service]`
 2. **Validate setup**: `./setup.sh --validate`
 3. **Health check**: `./scripts/health-check.sh`
 4. **Documentation**: Browse `/docs` in this repository

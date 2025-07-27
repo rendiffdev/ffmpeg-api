@@ -1531,7 +1531,7 @@ export LOG_LEVEL=INFO
 ./scripts/manage-ssl.sh generate-letsencrypt your-domain.com admin@domain.com
 
 # Deploy with HTTPS
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker compose.prod.yml up -d
 
 # Verify SSL configuration
 ./scripts/manage-ssl.sh validate your-domain.com
@@ -1541,7 +1541,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 #### Horizontal Scaling
 ```yaml
-# docker-compose.scale.yml
+# docker compose.scale.yml
 version: '3.8'
 services:
   api:

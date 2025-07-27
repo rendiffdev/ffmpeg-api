@@ -27,7 +27,7 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: "rendiff"
+    network: "ffmpeg-net"
   file:
     filename: /etc/traefik/dynamic.yml
     watch: true

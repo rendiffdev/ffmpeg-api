@@ -122,9 +122,9 @@ ffmpeg-api/
 │       ├── progress.py
 │       ├── quality.py
 │       └── resource_manager.py
-├── docker-compose.yml             # Main compose file
-├── docker-compose.prod.yml        # Production overrides
-├── docker-compose.stable.yml      # Stable build config
+├── docker compose.yml             # Main compose file
+├── docker compose.prod.yml        # Production overrides
+├── docker compose.stable.yml      # Stable build config
 ├── requirements.txt               # Python dependencies
 ├── README.md                     # Project documentation
 ├── LICENSE                       # License file
@@ -169,7 +169,7 @@ The following files and directories were removed during cleanup:
 - `rendiff` - Orphaned file
 - `setup.py` & `setup.sh` - Old setup scripts
 - `requirements-genai.txt` - GenAI requirements
-- `docker-compose.genai.yml` - GenAI compose file
+- `docker compose.genai.yml` - GenAI compose file
 - `config/storage.yml*` - Old storage configs
 - `docs/AUDIT_REPORT.md` - Duplicate audit report
 

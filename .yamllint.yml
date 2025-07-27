@@ -1,0 +1,64 @@
+# YAML Lint Configuration for FFmpeg API
+# https://yamllint.readthedocs.io/en/stable/configuration.html
+
+extends: default
+
+rules:
+  # Allow longer lines for docker compose and configuration files
+  line-length:
+    max: 120
+    level: warning
+    
+  # Allow multiple spaces after colons for alignment
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: -1
+    
+  # Allow consistent indentation (2 or 4 spaces)
+  indentation:
+    spaces: consistent
+    indent-sequences: true
+    check-multi-line-strings: false
+    
+  # Don't require document start markers (---) 
+  document-start: disable
+  
+  # Allow empty values in mappings
+  empty-values:
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: false
+    
+  # Make trailing spaces a warning instead of error
+  trailing-spaces:
+    level: warning
+    
+  # Allow common truthy values used in Docker Compose
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false
+    
+  # Allow brackets for flow sequences  
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    
+  # Allow braces for flow mappings
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    
+  # Allow comments to be closer to content
+  comments:
+    min-spaces-from-content: 1
+    
+  # Don't require spacing around hyphens in flow sequences
+  hyphens:
+    max-spaces-after: 1
+
+# Ignore specific files/patterns
+ignore: |
+  .git/
+  node_modules/
+  .venv/
+  __pycache__/
+  *.pyc

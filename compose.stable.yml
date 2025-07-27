@@ -1,13 +1,11 @@
 # Docker Compose override for stable builds
 # This file ensures consistent Python versions and build arguments
 
-version: '3.8'
-
 services:
   api:
     build:
       context: .
-      dockerfile: docker/api/Dockerfile.new
+      dockerfile: docker/api/Dockerfile
       args:
         PYTHON_VERSION: 3.12.7
       cache_from:

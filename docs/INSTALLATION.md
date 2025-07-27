@@ -56,7 +56,7 @@ cd ffmpeg-api
 #### Option B: Docker-Only Setup
 ```bash
 # Run the setup container directly
-docker-compose --profile setup run --rm setup
+docker compose --profile setup run --rm setup
 ```
 
 #### Option C: Script-Only Setup
@@ -108,13 +108,13 @@ After completing the wizard:
 
 ```bash
 # Start all configured services
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Step 4: Verify Installation
@@ -139,7 +139,7 @@ curl -sSL https://raw.githubusercontent.com/rendiffdev/ffmpeg-api/main/scripts/i
 
 # Then run the setup wizard
 cd /opt/rendiff
-docker-compose --profile setup run --rm setup
+docker compose --profile setup run --rm setup
 ```
 
 ### Storage Backend Examples
@@ -259,7 +259,7 @@ helm install rendiff rendiff/rendiff -f values.yaml
 
 ```bash
 # Generate Kubernetes manifests
-docker-compose run --rm setup --mode k8s --output k8s/
+docker compose run --rm setup --mode k8s --output k8s/
 
 # Apply manifests
 kubectl create namespace rendiff
@@ -354,14 +354,14 @@ chmod -R 755 ./storage
 
 ```bash
 # Check logs
-docker-compose logs api
-docker-compose logs worker-cpu
+docker compose logs api
+docker compose logs worker-cpu
 
 # Verify configuration
-docker-compose config
+docker compose config
 
 # Rebuild if needed
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 #### 4. Database Connection Failed
@@ -380,7 +380,7 @@ python scripts/init-sqlite.py
 
 ### Getting Help
 
-- Check logs: `docker-compose logs -f`
+- Check logs: `docker compose logs -f`
 - API documentation: http://localhost:8000/docs
 - Run diagnostics: `./scripts/updater.py verify`
 - GitHub Issues: https://github.com/rendiffdev/ffmpeg-api/issues
@@ -433,7 +433,7 @@ sudo apt update && sudo apt upgrade -y
 # Install required packages
 sudo apt install -y \
     docker.io \
-    docker-compose \
+    docker compose \
     postgresql-client \
     ffmpeg \
     git \
@@ -492,8 +492,8 @@ Type=simple
 User=rendiff
 WorkingDirectory=/opt/rendiff
 EnvironmentFile=/etc/rendiff/.env
-ExecStart=/usr/bin/docker-compose up
-ExecStop=/usr/bin/docker-compose down
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
 Restart=always
 RestartSec=10
 
@@ -683,9 +683,9 @@ sudo apt update && sudo apt install -y nvidia-container-toolkit
 sudo systemctl restart docker
 ```
 
-2. Enable GPU workers in `docker-compose.yml`:
+2. Enable GPU workers in `docker compose.yml`:
 ```bash
-docker-compose --profile gpu up -d
+docker compose --profile gpu up -d
 ```
 
 ## Troubleshooting
@@ -710,7 +710,7 @@ sudo systemctl status postgresql
 psql -h localhost -U rendiff -d rendiff
 
 # Check logs
-docker-compose logs postgres
+docker compose logs postgres
 ```
 
 #### 3. FFmpeg not found
@@ -732,7 +732,7 @@ chmod -R 755 ./storage
 
 ### Getting Help
 
-- Check logs: `docker-compose logs -f`
+- Check logs: `docker compose logs -f`
 - API documentation: http://localhost:8000/docs
 - GitHub Issues: https://github.com/rendiffdev/ffmpeg-api/issues
 - Website: https://rendiff.dev

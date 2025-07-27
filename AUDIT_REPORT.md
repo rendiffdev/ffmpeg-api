@@ -186,7 +186,7 @@ api/
 ├── models/         # Database models
 ├── middleware/     # Request/response middleware
 ├── utils/          # Utility functions
-└── genai/          # AI processing services
+└── gpu/            # Hardware acceleration services
 
 tests/
 ├── unit/           # Unit tests
@@ -383,7 +383,7 @@ tests/
 4. **Backup Testing:** Monthly backup restoration tests
 
 ### Future Enhancements:
-1. **Advanced AI Features:** Expand machine learning capabilities
+1. **Advanced Hardware Features:** Expand GPU acceleration capabilities
 2. **Multi-Region:** Consider global deployment for scalability
 3. **Advanced Analytics:** Business intelligence and reporting
 4. **API Versioning:** Prepare for future API evolution
