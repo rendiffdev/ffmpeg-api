@@ -157,20 +157,15 @@ jobs:
           - component: api
             dockerfile: docker/api/Dockerfile
             context: .
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}"
           - component: worker-cpu
             dockerfile: docker/worker/Dockerfile
             context: .
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-              WORKER_TYPE=cpu
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}\nWORKER_TYPE=cpu"
           - component: worker-gpu
             dockerfile: docker/worker/Dockerfile
             context: .
-            build_args: |
-              PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-              WORKER_TYPE=gpu
+            build_args: "PYTHON_VERSION=${{ env.PYTHON_VERSION }}\nWORKER_TYPE=gpu"
     
     steps:
     - name: Checkout code
