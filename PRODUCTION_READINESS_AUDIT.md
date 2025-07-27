@@ -213,7 +213,7 @@ The ffmpeg-api project demonstrates **strong architectural foundations** but has
 #### Findings:
 **Strengths:**
 - Excellent Docker containerization
-- Comprehensive docker-compose configurations
+- Comprehensive docker compose configurations
 - Multi-environment support
 - Proper service orchestration with Traefik
 

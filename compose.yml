@@ -1,5 +1,5 @@
-# Docker Compose format version is no longer required in Compose v2+
-# Using latest features and best practices
+# Production-Grade FFmpeg API Docker Compose Configuration
+# Optimized for performance, security, and maintainability
 
 name: ffmpeg-api
 

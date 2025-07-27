@@ -1,0 +1,134 @@
+# Docker Compose override for local development
+# This file is automatically loaded by docker compose
+# Provides convenient development settings
+
+services:
+  # API Service - Development Overrides
+  api:
+    environment:
+      # Development environment variables
+      DEBUG: "true"
+      LOG_LEVEL: debug
+      ENABLE_API_KEYS: "false"
+      API_CORS_ORIGINS: "http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080"
+      PYTHONUNBUFFERED: "1"
+      
+    volumes:
+      # Mount source code for hot reload (uncomment for development)
+      # - ./api:/app/api:ro
+      # - ./worker:/app/worker:ro
+      
+      # Development storage
+      - ./storage:/storage
+      - ./logs:/app/logs
+      
+    # Expose additional ports for debugging
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Python debugger port
+      
+    # Override command for development with auto-reload
+    command: >
+      sh -c "
+        python -m pip install debugpy &&
+        python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    
+    # Reduce resource limits for development
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Worker Service - Development Overrides
+  worker:
+    environment:
+      LOG_LEVEL: debug
+      WORKER_CONCURRENCY: "2"
+      PYTHONUNBUFFERED: "1"
+      
+    volumes:
+      # Development storage
+      - ./storage:/storage
+      - ./logs:/app/logs
+      
+    # Reduce replicas for development
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  # PostgreSQL - Development Overrides
+  postgres:
+    environment:
+      # Development database settings
+      POSTGRES_PASSWORD: dev_password_123
+      POSTGRES_DB: ffmpeg_api_dev
+      
+    ports:
+      # Expose postgres for local development tools
+      - "5432:5432"
+      
+    volumes:
+      # Use local development data
+      - postgres-dev-data:/var/lib/postgresql/data
+      
+  # Redis - Development Overrides  
+  redis:
+    ports:
+      # Expose Redis for local development tools
+      - "6379:6379"
+      
+    volumes:
+      # Use local development data
+      - redis-dev-data:/data
+      
+    # Simpler Redis config for development
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      
+  # Development Tools
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: ffmpeg_dev_mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - ffmpeg-net
+    profiles:
+      - dev-tools
+      
+  # Database Admin Tool
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ffmpeg_dev_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@localhost
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-dev-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - ffmpeg-net
+    profiles:
+      - dev-tools
+
+# Development volumes
+volumes:
+  postgres-dev-data:
+    driver: local
+  redis-dev-data:
+    driver: local
+  pgadmin-dev-data:
+    driver: local

@@ -79,16 +79,16 @@ validate_docker_compose() {
     print_info "Validating Docker Compose configurations..."
     
     # Check main compose file
-    run_check "Main docker-compose.yml syntax" \
-        "docker-compose -f '$PROJECT_ROOT/docker-compose.yml' config >/dev/null"
+    run_check "Main compose.yml syntax" \
+        "docker-compose -f '$PROJECT_ROOT/compose.yml' config >/dev/null"
     
     # Check production compose file
-    run_check "Production docker-compose.prod.yml syntax" \
-        "docker-compose -f '$PROJECT_ROOT/docker-compose.prod.yml' config >/dev/null"
+    run_check "Production compose.prod.yml syntax" \
+        "docker-compose -f '$PROJECT_ROOT/compose.prod.yml' config >/dev/null"
     
     # Check GenAI compose file with base
     run_check "GenAI docker-compose.genai.yml as override" \
-        "docker-compose -f '$PROJECT_ROOT/docker-compose.yml' -f '$PROJECT_ROOT/docker-compose.genai.yml' config >/dev/null"
+        "docker-compose -f '$PROJECT_ROOT/compose.yml' -f '$PROJECT_ROOT/docker-compose.genai.yml' config >/dev/null"
     
     # Note: Main and production configs are designed to be used separately
     # They have conflicting service definitions by design

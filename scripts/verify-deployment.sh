@@ -10,7 +10,7 @@ echo "====================================="
 echo "📋 Checking required files..."
 
 REQUIRED_FILES=(
-    "docker-compose.yml"
+    "compose.yml"
     "docker-compose.genai.yml"
     ".env.example"
     "requirements.txt"
@@ -88,13 +88,13 @@ done
 echo "🐳 Validating Docker Compose files..."
 
 if docker-compose config >/dev/null 2>&1; then
-    echo "✅ docker-compose.yml syntax is valid"
+    echo "✅ compose.yml syntax is valid"
 else
-    echo "❌ docker-compose.yml has syntax errors"
+    echo "❌ compose.yml has syntax errors"
     exit 1
 fi
 
-if docker-compose -f docker-compose.yml -f docker-compose.genai.yml config >/dev/null 2>&1; then
+if docker-compose -f compose.yml -f docker-compose.genai.yml config >/dev/null 2>&1; then
     echo "✅ docker-compose.genai.yml syntax is valid"
 else
     echo "❌ docker-compose.genai.yml has syntax errors"

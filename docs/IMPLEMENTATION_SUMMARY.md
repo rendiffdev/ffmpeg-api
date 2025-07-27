@@ -129,7 +129,7 @@ This document summarizes the implementation work completed based on the STATUS.m
 - **Files Created:**
   - `monitoring/dashboards/` - 4 comprehensive Grafana dashboards
   - `monitoring/alerts/` - Alerting rules
-  - `docker-compose.elk.yml` - Complete ELK stack
+  - `docker compose.elk.yml` - Complete ELK stack
   - `api/services/metrics.py` - Custom metrics service
   - `monitoring/logstash/` - Log processing pipeline
   - `docs/monitoring-guide.md` - 667-line monitoring guide

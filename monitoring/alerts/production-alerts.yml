@@ -1,5 +1,9 @@
+# Prometheus Alerting Rules for FFmpeg API Production
+# SLO-based alerts with multi-window burn rate
+
 groups:
-  - name: ffmpeg-api-production
+  - name: ffmpeg_api_availability
+    interval: 30s
     rules:
       # High Priority Alerts
       - alert: APIHighErrorRate

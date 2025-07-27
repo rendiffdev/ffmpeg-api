@@ -100,7 +100,7 @@ CORS_ORIGINS=https://app.example.com,https://admin.example.com
    ```bash
    # Regularly update base images
    docker pull python:3.12-slim
-   docker-compose build --no-cache
+   docker compose build --no-cache
    ```
 
 ## 5. Database Security
@@ -113,7 +113,7 @@ CORS_ORIGINS=https://app.example.com,https://admin.example.com
 
 2. **Connection Limits**
    ```yaml
-   # Already configured in docker-compose.yml
+   # Already configured in docker compose.yml
    max_connections: 200
    ```
 

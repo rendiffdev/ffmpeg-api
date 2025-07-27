@@ -1,0 +1,516 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "ffmpeg-api-prod",
+    "title": "FFmpeg API - Production Operations",
+    "tags": ["ffmpeg", "api", "production", "sre"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "datasource",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {
+            "value": "Prometheus"
+          }
+        },
+        {
+          "name": "namespace",
+          "type": "query",
+          "datasource": "$datasource",
+          "query": "label_values(up{job=\"ffmpeg-api\"}, namespace)",
+          "current": {
+            "value": "default"
+          }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "title": "🚨 Service Health Overview",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 3},
+        "id": 1,
+        "targets": [
+          {
+            "expr": "up{job=\"ffmpeg-api\"}",
+            "legendFormat": "API",
+            "refId": "A"
+          },
+          {
+            "expr": "up{job=\"ffmpeg-worker-cpu\"}",
+            "legendFormat": "CPU Workers",
+            "refId": "B"
+          },
+          {
+            "expr": "up{job=\"ffmpeg-worker-gpu\"}",
+            "legendFormat": "GPU Workers",
+            "refId": "C"
+          },
+          {
+            "expr": "up{job=\"postgres\"}",
+            "legendFormat": "Database",
+            "refId": "D"
+          },
+          {
+            "expr": "up{job=\"redis\"}",
+            "legendFormat": "Queue",
+            "refId": "E"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "value": "1", "text": "UP", "color": "green"},
+              {"type": "value", "value": "0", "text": "DOWN", "color": "red"}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "📊 Key Performance Indicators",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 3, "w": 24, "h": 1},
+        "id": 2,
+        "collapsed": false
+      },
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 6, "h": 8},
+        "id": 3,
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"ffmpeg-api\"}[5m])) by (status)",
+            "legendFormat": "{{status}}xx"
+          }
+        ],
+        "yaxes": [{"format": "reqps", "label": "Requests/sec"}]
+      },
+      {
+        "title": "Response Time (P95)",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 4, "w": 6, "h": 8},
+        "id": 4,
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"ffmpeg-api\"}[5m])) by (le, endpoint))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "yaxes": [{"format": "s", "label": "Response Time"}]
+      },
+      {
+        "title": "Active Jobs",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 4, "w": 6, "h": 8},
+        "id": 5,
+        "targets": [
+          {
+            "expr": "ffmpeg_jobs_active{job=\"ffmpeg-api\"}",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 80
+            }
+          }
+        }
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 4, "w": 6, "h": 8},
+        "id": 6,
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"ffmpeg-api\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"ffmpeg-api\"}[5m])) * 100",
+            "legendFormat": "Error %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "🎬 Video Processing Metrics",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 12, "w": 24, "h": 1},
+        "id": 7,
+        "collapsed": false
+      },
+      {
+        "title": "Processing Queue Depth",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 13, "w": 8, "h": 8},
+        "id": 8,
+        "targets": [
+          {
+            "expr": "ffmpeg_queue_depth{job=\"ffmpeg-api\"}",
+            "legendFormat": "{{priority}} priority"
+          }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [100], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "name": "High Queue Depth",
+          "message": "Processing queue depth exceeded 100 jobs"
+        }
+      },
+      {
+        "title": "Job Processing Time",
+        "type": "heatmap",
+        "gridPos": {"x": 8, "y": 13, "w": 8, "h": 8},
+        "id": 9,
+        "targets": [
+          {
+            "expr": "ffmpeg_job_duration_seconds_bucket{job=\"ffmpeg-worker-cpu\"}",
+            "format": "heatmap",
+            "legendFormat": "{{le}}"
+          }
+        ],
+        "dataFormat": "timeseries",
+        "yAxis": {"format": "s", "logBase": 2}
+      },
+      {
+        "title": "GPU Utilization",
+        "type": "graph",
+        "gridPos": {"x": 16, "y": 13, "w": 8, "h": 8},
+        "id": 10,
+        "targets": [
+          {
+            "expr": "gpu_utilization_percent{job=\"ffmpeg-worker-gpu\"}",
+            "legendFormat": "GPU {{gpu_index}}"
+          }
+        ],
+        "yaxes": [{"format": "percent", "max": 100, "min": 0}]
+      },
+      {
+        "title": "💾 Resource Utilization",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 21, "w": 24, "h": 1},
+        "id": 11,
+        "collapsed": false
+      },
+      {
+        "title": "CPU Usage by Service",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 22, "w": 6, "h": 8},
+        "id": 12,
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{pod=~\"ffmpeg-.*\"}[5m]) * 100",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yaxes": [{"format": "percent", "label": "CPU Usage"}]
+      },
+      {
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 22, "w": 6, "h": 8},
+        "id": 13,
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{pod=~\"ffmpeg-.*\"} / 1024 / 1024 / 1024",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yaxes": [{"format": "GB", "label": "Memory"}]
+      },
+      {
+        "title": "Storage I/O",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 22, "w": 6, "h": 8},
+        "id": 14,
+        "targets": [
+          {
+            "expr": "rate(container_fs_reads_bytes_total{pod=~\"ffmpeg-.*\"}[5m])",
+            "legendFormat": "{{pod}} read"
+          },
+          {
+            "expr": "rate(container_fs_writes_bytes_total{pod=~\"ffmpeg-.*\"}[5m])",
+            "legendFormat": "{{pod}} write"
+          }
+        ],
+        "yaxes": [{"format": "Bps", "label": "I/O Rate"}]
+      },
+      {
+        "title": "Network Traffic",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 22, "w": 6, "h": 8},
+        "id": 15,
+        "targets": [
+          {
+            "expr": "rate(container_network_receive_bytes_total{pod=~\"ffmpeg-.*\"}[5m])",
+            "legendFormat": "{{pod}} RX"
+          },
+          {
+            "expr": "rate(container_network_transmit_bytes_total{pod=~\"ffmpeg-.*\"}[5m])",
+            "legendFormat": "{{pod}} TX"
+          }
+        ],
+        "yaxes": [{"format": "Bps", "label": "Network"}]
+      },
+      {
+        "title": "🔍 Database Performance",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 30, "w": 24, "h": 1},
+        "id": 16,
+        "collapsed": false
+      },
+      {
+        "title": "Database Connections",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 31, "w": 8, "h": 8},
+        "id": 17,
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"ffmpeg_api\"}",
+            "legendFormat": "Active connections"
+          },
+          {
+            "expr": "pg_settings_max_connections",
+            "legendFormat": "Max connections"
+          }
+        ]
+      },
+      {
+        "title": "Query Performance",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 31, "w": 8, "h": 8},
+        "id": 18,
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_blks_hit{datname=\"ffmpeg_api\"}[5m]) / (rate(pg_stat_database_blks_hit{datname=\"ffmpeg_api\"}[5m]) + rate(pg_stat_database_blks_read{datname=\"ffmpeg_api\"}[5m])) * 100",
+            "legendFormat": "Cache hit ratio"
+          }
+        ],
+        "yaxes": [{"format": "percent", "max": 100, "min": 0}]
+      },
+      {
+        "title": "Database Size",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 31, "w": 8, "h": 8},
+        "id": 19,
+        "targets": [
+          {
+            "expr": "pg_database_size_bytes{datname=\"ffmpeg_api\"} / 1024 / 1024 / 1024",
+            "legendFormat": "Database size"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "GB",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "📈 Business Metrics",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 39, "w": 24, "h": 1},
+        "id": 20,
+        "collapsed": false
+      },
+      {
+        "title": "Jobs by Status",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 40, "w": 6, "h": 8},
+        "id": 21,
+        "targets": [
+          {
+            "expr": "sum(ffmpeg_jobs_total) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "title": "Processing Volume (GB/hour)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 40, "w": 6, "h": 8},
+        "id": 22,
+        "targets": [
+          {
+            "expr": "sum(rate(ffmpeg_bytes_processed_total[1h])) / 1024 / 1024 / 1024",
+            "legendFormat": "GB/hour"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "GB/h",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "title": "API Key Usage",
+        "type": "table",
+        "gridPos": {"x": 12, "y": 40, "w": 12, "h": 8},
+        "id": 23,
+        "targets": [
+          {
+            "expr": "topk(10, sum by (api_key_hash) (rate(ffmpeg_api_requests_by_key_total[1h])))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "api_key_hash": "API Key (hash)",
+                "Value": "Requests/hour"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "🚨 Alerts & SLIs",
+        "type": "row",
+        "gridPos": {"x": 0, "y": 48, "w": 24, "h": 1},
+        "id": 24,
+        "collapsed": false
+      },
+      {
+        "title": "SLI: Availability",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 49, "w": 6, "h": 4},
+        "id": 25,
+        "targets": [
+          {
+            "expr": "(1 - (sum(rate(http_requests_total{job=\"ffmpeg-api\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"ffmpeg-api\"}[5m])))) * 100",
+            "legendFormat": "Availability"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 3,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 99},
+                {"color": "green", "value": 99.9}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "SLI: Latency (P99)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 49, "w": 6, "h": 4},
+        "id": 26,
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"ffmpeg-api\"}[5m])) by (le))",
+            "legendFormat": "P99 Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Error Budget Remaining",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 49, "w": 6, "h": 4},
+        "id": 27,
+        "targets": [
+          {
+            "expr": "100 - ((1 - slo_availability_target) - (1 - availability_current)) / (1 - slo_availability_target) * 100"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 25},
+                {"color": "green", "value": 50}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Active Alerts",
+        "type": "alertlist",
+        "gridPos": {"x": 18, "y": 49, "w": 6, "h": 4},
+        "id": 28,
+        "options": {
+          "showOptions": "current",
+          "maxItems": 10,
+          "sortOrder": 1,
+          "dashboardAlerts": true,
+          "alertName": "",
+          "dashboardTitle": "",
+          "tags": ["ffmpeg-api"]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,133 @@
+name: YAML Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '.github/workflows/*.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '.github/workflows/*.yml'
+
+jobs:
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install yamllint
+      run: |
+        python -m pip install --upgrade pip
+        pip install yamllint
+        
+    - name: Create yamllint config
+      run: |
+        cat > .yamllint.yml << EOF
+        extends: default
+        
+        rules:
+          # Allow longer lines for docker compose
+          line-length:
+            max: 120
+            level: warning
+            
+          # Allow multiple spaces after operators
+          colons:
+            max-spaces-before: 0
+            max-spaces-after: -1
+            
+          # Allow indentation of 2 or 4 spaces
+          indentation:
+            spaces: consistent
+            indent-sequences: true
+            check-multi-line-strings: false
+            
+          # Don't require document start markers
+          document-start: disable
+          
+          # Allow empty values
+          empty-values:
+            forbid-in-block-mappings: false
+            forbid-in-flow-mappings: false
+            
+          # Allow trailing spaces in comments
+          trailing-spaces:
+            level: warning
+            
+          # Allow truthy values like 'yes', 'on', etc.
+          truthy:
+            allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+            check-keys: false
+        EOF
+        
+    - name: Lint YAML files
+      run: |
+        echo "Linting YAML files..."
+        find . -type f \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" | while read file; do
+          echo "Checking: $file"
+          yamllint "$file"
+        done
+        
+    - name: Validate Docker Compose files
+      run: |
+        echo "Validating Docker Compose syntax..."
+        
+        # Check main compose file
+        if [ -f "compose.yml" ]; then
+          echo "Validating compose.yml..."
+          docker compose -f compose.yml config > /dev/null
+        fi
+        
+        # Check production compose file
+        if [ -f "compose.prod.yml" ]; then
+          echo "Validating compose.prod.yml..."
+          docker compose -f compose.prod.yml config > /dev/null
+        fi
+        
+        # Check stable compose file
+        if [ -f "compose.stable.yml" ]; then
+          echo "Validating compose.stable.yml..."
+          docker compose -f compose.stable.yml config > /dev/null
+        fi
+        
+        # Check override file
+        if [ -f "compose.override.yml" ]; then
+          echo "Validating compose.override.yml..."
+          docker compose -f compose.yml -f compose.override.yml config > /dev/null
+        fi
+        
+        echo "All Docker Compose files are valid!"
+        
+    - name: Check for common issues
+      run: |
+        echo "Checking for common Docker Compose issues..."
+        
+        # Check for deprecated version field
+        if grep -r "version:" . --include="*.yml" --include="*.yaml" --exclude-dir=.git; then
+          echo "::warning::Found 'version:' field in compose files. This is deprecated in modern Docker Compose."
+        fi
+        
+        # Check for hardcoded localhost
+        if grep -r "localhost" . --include="compose*.yml" --exclude-dir=.git; then
+          echo "::warning::Found hardcoded 'localhost' in compose files. Consider using service names."
+        fi
+        
+        # Check for missing health checks on databases
+        if grep -A 10 "image.*postgres" . --include="compose*.yml" --exclude-dir=.git | grep -v "healthcheck:" > /dev/null; then
+          echo "::warning::PostgreSQL services should have health checks defined."
+        fi
+        
+        echo "Common issues check completed!"

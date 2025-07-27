@@ -154,7 +154,7 @@ RUN python -c "import psycopg2; print('psycopg2:', psycopg2.__version__)" && \
 | `.python-version` | Version pinning | Central Python version declaration |
 | `docker/base.Dockerfile` | Base image | Standardized base with all dependencies |
 | `docker/requirements-stable.txt` | Dependency management | Pinned versions for stability |
-| `docker-compose.stable.yml` | Stable builds | Override for consistent builds |
+| `docker compose.stable.yml` | Stable builds | Override for consistent builds |
 | `scripts/validate-stable-build.sh` | Build validation | Comprehensive testing script |
 | `.github/workflows/stable-build.yml` | CI/CD pipeline | Automated build testing |
 | `docs/stable-build-solution.md` | Documentation | This comprehensive guide |
@@ -175,13 +175,13 @@ RUN python -c "import psycopg2; print('psycopg2:', psycopg2.__version__)" && \
 #### **Local Build**
 ```bash
 # Build with stable configuration
-docker-compose -f docker-compose.yml -f docker-compose.stable.yml build
+docker compose -f docker compose.yml -f docker compose.stable.yml build
 
 # Validate builds
 ./scripts/validate-stable-build.sh
 
 # Start services
-docker-compose -f docker-compose.yml -f docker-compose.stable.yml up
+docker compose -f docker compose.yml -f docker compose.stable.yml up
 ```
 
 #### **Single Container Testing**
@@ -215,7 +215,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build and validate
       run: |
-        docker-compose -f docker-compose.stable.yml build
+        docker compose -f docker compose.stable.yml build
         ./scripts/validate-stable-build.sh
 ```
 
@@ -328,14 +328,14 @@ pgrep -f "python.*api" >/dev/null || exit 1
 ```bash
 # Rollback to previous stable version
 docker tag ffmpeg-api:v1.0.0-stable-backup ffmpeg-api:latest
-docker-compose restart api
+docker compose restart api
 ```
 
 #### **Configuration Level**
 ```bash
 # Use old Dockerfile if needed
 cp docker/api/Dockerfile.old docker/api/Dockerfile
-docker-compose build api
+docker compose build api
 ```
 
 ### **Rollback Validation**

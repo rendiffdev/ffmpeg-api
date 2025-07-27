@@ -167,7 +167,7 @@ class QueueService:
         # Consider implementing with ELK stack, Grafana Loki, or similar
         return [
             "Log aggregation not configured",
-            "Use 'docker-compose logs worker' to view worker logs",
+            "Use 'docker compose logs worker' to view worker logs",
             f"Job ID: {job_id}",
             f"Worker ID: {worker_id}",
         ]

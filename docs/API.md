@@ -15,7 +15,7 @@ Complete API reference for the Rendiff FFmpeg API service.
 
 ## Overview
 
-The Rendiff API provides a RESTful interface to FFmpeg's media processing capabilities with optional AI enhancement. 
+The Rendiff API provides a RESTful interface to FFmpeg's media processing capabilities with hardware acceleration support. 
 
 > **💡 New to setup?** See the [Setup Guide](SETUP.md) for deployment instructions.
 
@@ -54,7 +54,7 @@ For production deployments, HTTPS is strongly recommended. The API supports both
 3. **Deploy with HTTPS**:
    ```bash
    # Production deployment with Traefik (includes HTTPS)
-   docker-compose -f docker-compose.prod.yml --profile traefik up -d
+   docker compose -f docker compose.prod.yml --profile traefik up -d
    ```
 
 #### SSL Certificate Management
@@ -690,10 +690,10 @@ The validation command performs a 10-point check:
 #### Using Docker Compose
 ```bash
 # Standard HTTP deployment
-docker-compose up -d
+docker compose up -d
 
 # HTTPS deployment with SSL certificates
-docker-compose -f docker-compose.yml -f docker-compose.https.yml up -d
+docker compose -f docker compose.yml -f docker compose.https.yml up -d
 ```
 
 #### Manual Nginx Configuration
@@ -766,13 +766,13 @@ netstat -tulnp | grep :443
 ./scripts/manage-ssl.sh renew
 
 # For Let's Encrypt, check logs
-docker-compose logs certbot
+docker compose logs certbot
 ```
 
 #### Log Files
 - **SSL Management**: `./ssl/renewal.log`
-- **Nginx**: Container logs via `docker-compose logs nginx`
-- **Let's Encrypt**: Container logs via `docker-compose logs certbot`
+- **Nginx**: Container logs via `docker compose logs nginx`
+- **Let's Encrypt**: Container logs via `docker compose logs certbot`
 
 ### Integration with API
 

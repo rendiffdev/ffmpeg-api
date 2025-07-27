@@ -42,7 +42,7 @@ The Rendiff FFmpeg API is a **production-ready**, **fully containerized** video 
 # Clone and deploy - no setup required!
 git clone https://github.com/rendiffdev/ffmpeg-api.git
 cd ffmpeg-api
-docker-compose up -d
+docker compose up -d
 
 # That's it! The API is now running at http://localhost:8080
 ```
@@ -51,7 +51,7 @@ docker-compose up -d
 ```bash
 git clone https://github.com/rendiffdev/ffmpeg-api.git
 cd ffmpeg-api
-docker-compose -f docker-compose.yml -f docker-compose.genai.yml up -d
+docker compose -f docker compose.yml -f docker compose.genai.yml up -d
 ```
 
 ### What Happens Automatically:
@@ -137,19 +137,19 @@ openssl rand -hex 32
 ### Option 1: Development/Testing Setup
 ```bash
 # Uses SQLite + local storage - perfect for testing
-docker-compose -f docker-compose.setup.yml up -d
+docker compose -f docker compose.setup.yml up -d
 ```
 
 ### Option 2: Production Deployment
 ```bash
 # Full production stack with PostgreSQL and monitoring
-docker-compose --profile postgres --profile monitoring up -d
+docker compose --profile postgres --profile monitoring up -d
 ```
 
 ### Option 3: Production with AI Features
 ```bash
 # Requires NVIDIA GPU with CUDA support
-docker-compose -f docker-compose.yml -f docker-compose.genai.yml up -d
+docker compose -f docker compose.yml -f docker compose.genai.yml up -d
 ```
 
 ### Option 4: Auto-Setup with Cloud Storage
@@ -159,7 +159,7 @@ RENDIFF_AUTO_SETUP=true \
 AWS_ACCESS_KEY_ID=your_key \
 AWS_SECRET_ACCESS_KEY=your_secret \
 AWS_S3_BUCKET=your-bucket \
-docker-compose up -d
+docker compose up -d
 ```
 
 ---
@@ -288,7 +288,7 @@ curl http://localhost:8080/api/v1/storage
 ### 1. Hardware Acceleration
 ```bash
 # For GPU acceleration
-docker-compose --profile gpu up -d
+docker compose --profile gpu up -d
 
 # Verify GPU availability
 curl http://localhost:8080/api/v1/capabilities
@@ -297,10 +297,10 @@ curl http://localhost:8080/api/v1/capabilities
 ### 2. Worker Scaling
 ```bash
 # Scale CPU workers
-docker-compose up -d --scale worker-cpu=6
+docker compose up -d --scale worker-cpu=6
 
 # Scale GPU workers (if available)
-docker-compose up -d --scale worker-gpu=2
+docker compose up -d --scale worker-gpu=2
 
 # Monitor worker utilization
 curl http://localhost:8080/api/v1/workers
@@ -308,7 +308,7 @@ curl http://localhost:8080/api/v1/workers
 
 ### 3. Resource Limits
 ```yaml
-# Configure in docker-compose.yml
+# Configure in docker compose.yml
 deploy:
   resources:
     limits:
@@ -335,13 +335,13 @@ http://localhost:3000
 ### 2. View Logs
 ```bash
 # API logs
-docker-compose logs -f api
+docker compose logs -f api
 
 # Worker logs
-docker-compose logs -f worker-cpu
+docker compose logs -f worker-cpu
 
 # All services
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 3. Performance Metrics
@@ -360,12 +360,12 @@ curl http://localhost:8080/api/v1/metrics
 ### Services Won't Start
 ```bash
 # Check service status
-docker-compose ps
+docker compose ps
 
 # View detailed logs
-docker-compose logs api
-docker-compose logs postgres
-docker-compose logs redis
+docker compose logs api
+docker compose logs postgres
+docker compose logs redis
 
 # Verify port availability
 netstat -tlnp | grep -E "(8080|5432|6379)"
@@ -374,14 +374,14 @@ netstat -tlnp | grep -E "(8080|5432|6379)"
 ### Database Connection Issues
 ```bash
 # Check PostgreSQL status
-docker-compose exec postgres pg_isready
+docker compose exec postgres pg_isready
 
 # Verify database creation
-docker-compose exec postgres psql -U rendiff -d rendiff -c "\dt"
+docker compose exec postgres psql -U rendiff -d rendiff -c "\dt"
 
 # Reset database (WARNING: data loss)
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### Storage Connection Errors
@@ -390,16 +390,16 @@ docker-compose up -d
 curl http://localhost:8080/api/v1/storage/test
 
 # Check permissions
-docker-compose exec api ls -la /app/storage
+docker compose exec api ls -la /app/storage
 ```
 
 ### FFmpeg Processing Failures
 ```bash
 # Verify FFmpeg installation
-docker-compose exec api ffmpeg -version
+docker compose exec api ffmpeg -version
 
 # Check available codecs
-docker-compose exec api ffmpeg -encoders
+docker compose exec api ffmpeg -encoders
 ```
 
 ### Performance Issues
@@ -411,7 +411,7 @@ docker stats
 curl http://localhost:8080/api/v1/workers
 
 # Scale workers if needed
-docker-compose up -d --scale worker-cpu=8
+docker compose up -d --scale worker-cpu=8
 ```
 
 ---

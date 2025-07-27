@@ -1,0 +1,193 @@
+# Production-Grade Storage Configuration
+# Supports multiple storage backends for different deployment scenarios
+
+# Storage Backend Configuration
+storage:
+  # Default backend (always configured)
+  default: local
+  
+  backends:
+    # Local filesystem storage (development/small deployments)
+    local:
+      type: filesystem
+      path: /storage
+      temp_path: /tmp/rendiff
+      settings:
+        # File permissions for created files
+        file_mode: 0o644
+        dir_mode: 0o755
+        # Maximum file size (10GB)
+        max_file_size: 10737418240
+        # Cleanup temporary files after (hours)
+        temp_cleanup_hours: 24
+        # Storage quota (bytes, 0 = unlimited)
+        storage_quota: 0
+    
+    # AWS S3 Storage (recommended for production)
+    s3:
+      type: s3
+      settings:
+        # S3 bucket configuration
+        bucket: "${S3_BUCKET_NAME}"
+        region: "${AWS_DEFAULT_REGION:-us-west-2}"
+        access_key_id: "${AWS_ACCESS_KEY_ID}"
+        secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+        
+        # Storage classes for different use cases
+        storage_class: STANDARD
+        temp_storage_class: STANDARD_IA
+        archive_storage_class: GLACIER
+        
+        # Multipart upload settings
+        multipart_threshold: 64MB
+        multipart_chunksize: 16MB
+        max_concurrency: 10
+        
+        # Security settings
+        server_side_encryption: AES256
+        acl: private
+        
+        # Lifecycle policies (optional)
+        lifecycle_rules:
+          - name: temp_cleanup
+            prefix: temp/
+            expiration_days: 1
+          - name: archive_old_files
+            prefix: processed/
+            transition_to_ia_days: 30
+            transition_to_glacier_days: 90
+    
+    # Azure Blob Storage
+    azure:
+      type: azure_blob
+      settings:
+        # Azure storage account
+        account_name: "${AZURE_STORAGE_ACCOUNT}"
+        account_key: "${AZURE_STORAGE_KEY}"
+        container_name: "${AZURE_CONTAINER_NAME:-videos}"
+        
+        # Storage tiers
+        blob_type: BlockBlob
+        access_tier: Hot
+        
+        # Security
+        require_encryption: true
+        connection_timeout: 30
+    
+    # Google Cloud Storage
+    gcs:
+      type: gcs
+      settings:
+        # GCS bucket configuration
+        bucket: "${GCS_BUCKET_NAME}"
+        project_id: "${GOOGLE_CLOUD_PROJECT}"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        
+        # Storage classes
+        storage_class: STANDARD
+        temp_storage_class: NEARLINE
+        archive_storage_class: COLDLINE
+        
+        # Security
+        uniform_bucket_level_access: true
+        
+        # Lifecycle policies
+        lifecycle_rules:
+          - action: Delete
+            condition:
+              age: 1
+              matches_prefix: ["temp/"]
+          - action: SetStorageClass
+            storage_class: NEARLINE
+            condition:
+              age: 30
+              matches_prefix: ["processed/"]
+
+# File Processing Configuration
+processing:
+  # Input file constraints
+  input:
+    # Maximum input file size (10GB)
+    max_file_size: 10737418240
+    
+    # Allowed input formats
+    allowed_formats:
+      video: [mp4, avi, mov, mkv, webm, flv, wmv, mpeg, ts, vob, 3gp, mxf]
+      audio: [mp3, wav, flac, aac, ogg, wma, m4a, opus, alac, dts]
+    
+    # File validation
+    validate_format: true
+    scan_for_viruses: false  # Enable if ClamAV is configured
+    
+  # Output configuration
+  output:
+    # Default output formats
+    default_video_format: mp4
+    default_audio_format: aac
+    
+    # Quality presets
+    quality_presets:
+      low: {crf: 28, preset: fast}
+      medium: {crf: 23, preset: medium}
+      high: {crf: 18, preset: slow}
+      lossless: {crf: 0, preset: ultrafast}
+    
+    # Output constraints
+    max_output_resolution: "7680x4320"  # 8K max
+    max_output_bitrate: "50M"
+    max_output_framerate: 120
+    
+  # Temporary file management
+  temp_files:
+    # Base directory for temporary files
+    base_path: /tmp/rendiff
+    
+    # Cleanup policies
+    cleanup_on_success: true
+    cleanup_on_failure: false  # Keep for debugging
+    cleanup_interval_hours: 6
+    
+    # Space management
+    max_temp_space_gb: 50
+    cleanup_when_space_low: true
+    low_space_threshold_percent: 90
+
+# CDN Configuration (optional)
+cdn:
+  enabled: false
+  provider: cloudflare  # cloudflare, fastly, aws_cloudfront
+  settings:
+    # CDN-specific settings would go here
+    cache_ttl: 86400  # 24 hours
+    compress: true
+    
+# Monitoring and Logging
+monitoring:
+  # Storage metrics
+  track_storage_usage: true
+  track_transfer_metrics: true
+  alert_on_quota_exceeded: true
+  
+  # Performance monitoring
+  track_upload_speed: true
+  track_download_speed: true
+  slow_operation_threshold_seconds: 30
+  
+# Security Configuration
+security:
+  # File scanning
+  enable_virus_scanning: false
+  clamav_host: "${CLAMAV_HOST}"
+  clamav_port: "${CLAMAV_PORT:-3310}"
+  
+  # File type validation
+  strict_mime_type_checking: true
+  allow_executable_uploads: false
+  
+  # Content filtering
+  scan_for_malicious_content: true
+  quarantine_suspicious_files: true
+  
+  # Encryption at rest
+  encrypt_stored_files: false
+  encryption_key_rotation_days: 90

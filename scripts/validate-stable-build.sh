@@ -195,7 +195,7 @@ fi
 
 # Test Docker Compose build
 log "🐳 Testing Docker Compose stable build..."
-if docker-compose -f docker-compose.yml -f docker-compose.stable.yml build >> "$LOG_FILE" 2>&1; then
+if docker-compose -f compose.yml -f compose.stable.yml build >> "$LOG_FILE" 2>&1; then
     success "Docker Compose stable build successful"
 else
     error "Docker Compose stable build failed"

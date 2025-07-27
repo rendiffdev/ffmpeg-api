@@ -79,7 +79,7 @@ echo ""
 echo "1. Checking Required Files"
 echo "--------------------------"
 check_file ".env" "Environment configuration file exists"
-check_file "docker-compose.yml" "Docker Compose file exists"
+check_file "compose.yml" "Docker Compose file exists"
 check_file "config/storage.yml" "Storage configuration exists"
 
 echo ""
