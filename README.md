@@ -26,7 +26,7 @@ A high-performance, production-ready FFmpeg API designed to replace complex CLI 
 ### 1. Clone & Deploy (60 seconds)
 
 ```bash
-git clone https://github.com/rendiffdev/ffmpeg-api.git
+git clone <repository-url>
 cd ffmpeg-api
 
 # Choose your deployment type
@@ -50,12 +50,10 @@ open http://localhost:8000/docs
 ```bash
 curl -X POST "http://localhost:8000/api/v1/convert" \\
   -H "Content-Type: application/json" \\
+  -H "X-API-Key: your-api-key" \\
   -d '{
-    "input": "/path/to/input.mp4",
-    "output": "/path/to/output.webm",
-    "operations": [
-      {"type": "transcode", "params": {"video_codec": "vp9", "crf": 30}}
-    ]
+    "input": "/storage/input.mp4",
+    "output": "mp4"
   }'
 ```
 
@@ -322,4 +320,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Transform your video processing workflow with production-ready FFmpeg API.**
 
-*Built with ❤️ by the Rendiff team*
+*Production-ready FFmpeg API for professional video processing*

@@ -1,6 +1,6 @@
-# Rendiff Installation Guide
+# FFmpeg API Installation Guide
 
-This guide covers various installation methods for the Rendiff FFmpeg API service.
+This guide covers various installation methods for the FFmpeg API service.
 
 > **🚀 Quick Setup?** Use the [unified setup script](../setup.sh) for one-command deployment.  
 > **📖 Detailed Setup?** See the [Setup Guide](SETUP.md) for comprehensive deployment documentation.  
@@ -32,16 +32,16 @@ This guide covers various installation methods for the Rendiff FFmpeg API servic
 - Git
 - Python 3.12+ (for manual installation)
 
-> **Note**: PostgreSQL is no longer required! Rendiff now uses SQLite as the default database, which is automatically managed within the application. No external database setup is needed.
+> **Note**: PostgreSQL is optional! The API supports both SQLite (for development) and PostgreSQL (for production), which can be configured during setup.
 
 ## Quick Start with Setup Wizard
 
-The fastest and easiest way to get Rendiff running:
+The fastest and easiest way to get the FFmpeg API running:
 
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/rendiffdev/ffmpeg-api.git
+git clone <repository-url>
 cd ffmpeg-api
 ```
 

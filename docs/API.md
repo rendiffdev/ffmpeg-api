@@ -1,6 +1,6 @@
-# Rendiff API Documentation
+# FFmpeg API Documentation
 
-Complete API reference for the Rendiff FFmpeg API service.
+Complete API reference for the production-ready FFmpeg API service.
 
 ## Table of Contents
 
@@ -15,20 +15,20 @@ Complete API reference for the Rendiff FFmpeg API service.
 
 ## Overview
 
-The Rendiff API provides a RESTful interface to FFmpeg's media processing capabilities with hardware acceleration support. 
+The FFmpeg API provides a RESTful interface to FFmpeg's media processing capabilities with hardware acceleration support. 
 
 > **💡 New to setup?** See the [Setup Guide](SETUP.md) for deployment instructions.
 
 All API requests should be made to:
 
 ```
-http://your-server:8000/api/v1
+http://localhost:8000/api/v1
 ```
 
 ### Base URL Structure
 
 - Development: `http://localhost:8000/api/v1`
-- Production: `https://your-domain.com/api/v1` (HTTPS recommended)
+- Production: `https://your-domain.com/api/v1` (Configure with your domain)
 
 ### HTTPS Configuration
 
@@ -38,31 +38,31 @@ For production deployments, HTTPS is strongly recommended. The API supports both
 
 1. **Interactive Setup**: Run the setup wizard and choose HTTPS options
    ```bash
-   ./scripts/interactive-setup.sh
-   # Choose option 2 (self-signed) or 3 (Let's Encrypt) for SSL configuration
+   ./setup.sh --standard
+   # Production setup includes HTTPS with self-signed certificates
    ```
 
-2. **Manual Certificate Generation**:
+2. **Certificate Management**:
    ```bash
-   # Self-signed certificate
-   ./scripts/manage-ssl.sh generate-self-signed your-domain.com
+   # Standard setup includes HTTPS with self-signed certificates
+   ./setup.sh --standard
    
-   # Let's Encrypt certificate
-   ./scripts/manage-ssl.sh generate-letsencrypt your-domain.com admin@example.com
+   # For custom certificates, edit traefik configuration
+   # and place certificates in ./traefik/certs/
    ```
 
 3. **Deploy with HTTPS**:
    ```bash
-   # Production deployment with Traefik (includes HTTPS)
-   docker compose -f docker compose.prod.yml --profile traefik up -d
+   # Production deployment with HTTPS enabled by default
+   ./setup.sh --standard
    ```
 
 #### SSL Certificate Management
 
-- **List certificates**: `./scripts/manage-ssl.sh list`
-- **Test SSL setup**: `./scripts/manage-ssl.sh test your-domain.com`
-- **Validate configuration**: `./scripts/manage-ssl.sh validate your-domain.com`
-- **Renew certificates**: `./scripts/manage-ssl.sh renew`
+- **Check deployment status**: `./setup.sh --status`
+- **View Traefik logs**: `docker compose logs traefik`
+- **Restart SSL services**: `docker compose restart traefik`
+- **Certificate location**: `./traefik/certs/`
 
 See the [SSL Management Guide](SETUP.md#httpssl-configuration) for detailed information.
 
@@ -519,59 +519,80 @@ curl -X POST http://localhost:8000/api/v1/stream \
   }'
 ```
 
-## SDKs
+## API Client Examples
 
-### Python SDK
+### Python Client
 
 ```python
-from rendiff import RendiffClient
+import requests
+import time
 
-client = RendiffClient(api_key="your-api-key", base_url="http://localhost:8000")
+class FFmpegAPIClient:
+    def __init__(self, api_key, base_url="http://localhost:8000"):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+    
+    def convert(self, input_path, output_format):
+        response = requests.post(
+            f"{self.base_url}/api/v1/convert",
+            json={"input": input_path, "output": output_format},
+            headers=self.headers
+        )
+        return response.json()
+    
+    def get_job_status(self, job_id):
+        response = requests.get(
+            f"{self.base_url}/api/v1/jobs/{job_id}",
+            headers=self.headers
+        )
+        return response.json()
 
-# Simple conversion
-job = client.convert(
-    input="/storage/input/video.avi",
-    output="mp4"
-)
-
-# Monitor progress
-for progress in job.watch():
-    print(f"Progress: {progress.percentage}%")
-
-# Get result
-result = job.wait()
-print(f"Output: {result.output_path}")
+# Usage
+client = FFmpegAPIClient(api_key="your-api-key")
+job = client.convert("/storage/input/video.avi", "mp4")
+print(f"Job ID: {job['job']['id']}")
 ```
 
-### JavaScript SDK
+### JavaScript Client
 
 ```javascript
-import { RendiffClient } from '@rendiff/sdk';
+class FFmpegAPIClient {
+    constructor(apiKey, baseUrl = 'http://localhost:8000') {
+        this.apiKey = apiKey;
+        this.baseUrl = baseUrl;
+        this.headers = {
+            'X-API-Key': apiKey,
+            'Content-Type': 'application/json'
+        };
+    }
+    
+    async convert(input, output) {
+        const response = await fetch(`${this.baseUrl}/api/v1/convert`, {
+            method: 'POST',
+            headers: this.headers,
+            body: JSON.stringify({ input, output })
+        });
+        return response.json();
+    }
+    
+    async getJobStatus(jobId) {
+        const response = await fetch(`${this.baseUrl}/api/v1/jobs/${jobId}`, {
+            headers: this.headers
+        });
+        return response.json();
+    }
+}
 
-const client = new RendiffClient({
-  apiKey: 'your-api-key',
-  baseUrl: 'http://localhost:8000'
-});
-
-// Convert with async/await
-const job = await client.convert({
-  input: '/storage/input/video.avi',
-  output: 'mp4'
-});
-
-// Watch progress
-job.onProgress((progress) => {
-  console.log(`Progress: ${progress.percentage}%`);
-});
-
-// Wait for completion
-const result = await job.wait();
-console.log(`Output: ${result.outputPath}`);
+// Usage
+const client = new FFmpegAPIClient('your-api-key');
+const job = await client.convert('/storage/input/video.avi', 'mp4');
+console.log(`Job ID: ${job.job.id}`);
 ```
 
 ### cURL Examples
 
-See the [examples directory](../examples/) for more cURL examples and use cases.
+Basic API usage with cURL commands.
 
 ## Rate Limiting
 
@@ -580,7 +601,7 @@ Default rate limits per API key:
 - 1000 requests/hour
 - 10 concurrent jobs
 
-These can be configured in the KrakenD gateway configuration.
+Rate limits are configurable through environment variables and can be adjusted based on your API key tier.
 
 ## Webhooks
 
@@ -790,5 +811,5 @@ The API automatically redirects HTTP traffic to HTTPS when SSL is enabled.
 
 - API Documentation: http://localhost:8000/docs
 - OpenAPI Schema: http://localhost:8000/openapi.json
-- GitHub: https://github.com/rendiffdev/ffmpeg-api
-- Discord: https://discord.gg/rendiff
+- Health Check: http://localhost:8000/api/v1/health
+- Metrics: http://localhost:9090 (if monitoring enabled)
