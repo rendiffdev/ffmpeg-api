@@ -813,3 +813,148 @@ The API automatically redirects HTTP traffic to HTTPS when SSL is enabled.
 - OpenAPI Schema: http://localhost:8000/openapi.json
 - Health Check: http://localhost:8000/api/v1/health
 - Metrics: http://localhost:9090 (if monitoring enabled)
+
+## Advanced Features
+
+### Batch Processing
+
+Process multiple files simultaneously with batch operations:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/batch" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "jobs": [
+      {
+        "input": "/storage/video1.mp4",
+        "output": "/storage/output1.mp4",
+        "operations": [{"type": "transcode", "params": {"video_codec": "h264"}}]
+      },
+      {
+        "input": "/storage/video2.avi", 
+        "output": "/storage/output2.webm",
+        "operations": [{"type": "transcode", "params": {"video_codec": "vp9"}}]
+      }
+    ],
+    "batch_name": "Daily Processing",
+    "validate_files": true
+  }'
+```
+
+### Enhanced Thumbnails
+
+Create professional thumbnails with multiple options:
+
+```bash
+# Single high-quality thumbnail
+curl -X POST "http://localhost:8000/api/v1/convert" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "input": "/storage/video.mp4",
+    "output": "/storage/thumb.jpg",
+    "operations": [
+      {
+        "type": "thumbnail",
+        "params": {
+          "timestamp": 30,
+          "width": 1920,
+          "height": 1080,
+          "quality": "high"
+        }
+      }
+    ]
+  }'
+
+# Multiple thumbnails at intervals
+curl -X POST "http://localhost:8000/api/v1/convert" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "input": "/storage/video.mp4",
+    "output": "/storage/thumbnails/",
+    "operations": [
+      {
+        "type": "thumbnail_grid", 
+        "params": {
+          "rows": 3,
+          "cols": 4,
+          "width": 1280,
+          "height": 720
+        }
+      }
+    ]
+  }'
+```
+
+### Adaptive Streaming
+
+Generate HLS/DASH streams with multiple quality variants:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/stream" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "input": "/storage/video.mp4",
+    "output": "/storage/streams/",
+    "type": "hls",
+    "variants": [
+      {"resolution": "1920x1080", "bitrate": "5000k", "name": "1080p"},
+      {"resolution": "1280x720", "bitrate": "2500k", "name": "720p"},
+      {"resolution": "854x480", "bitrate": "1000k", "name": "480p"}
+    ],
+    "segment_duration": 6
+  }'
+```
+
+### Quality Analysis
+
+Analyze video quality with industry-standard metrics:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/analyze" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "input": "/storage/processed.mp4",
+    "reference": "/storage/original.mp4",
+    "metrics": ["vmaf", "psnr", "ssim"]
+  }'
+```
+
+### Advanced Watermarking
+
+Professional watermark placement with precise control:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/convert" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "input": "/storage/video.mp4",
+    "output": "/storage/watermarked.mp4",
+    "operations": [
+      {
+        "type": "watermark",
+        "params": {
+          "watermark_path": "/storage/logo.png",
+          "position": "bottom-right",
+          "opacity": 0.8,
+          "scale": 0.15
+        }
+      }
+    ]
+  }'
+```
+
+### Media File Security
+
+All uploaded files are automatically validated for security:
+
+- **Malware Detection**: Scans for malicious file signatures
+- **MIME Type Validation**: Ensures files are legitimate media
+- **Content Analysis**: Deep inspection with FFprobe
+- **Size Limits**: Configurable per API key tier
+- **Entropy Analysis**: Detects packed/encrypted content

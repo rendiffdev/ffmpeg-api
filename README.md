@@ -74,6 +74,7 @@ POST /api/v1/convert        # Universal media conversion
 POST /api/v1/analyze        # Quality metrics (VMAF, PSNR, SSIM)
 POST /api/v1/stream         # HLS/DASH adaptive streaming
 POST /api/v1/estimate       # Processing time/cost estimation
+POST /api/v1/batch          # Batch processing (up to 100 jobs)
 ```
 
 ### Job Management
@@ -83,6 +84,8 @@ GET  /api/v1/jobs           # List and filter jobs
 GET  /api/v1/jobs/{id}      # Job status and progress
 GET  /api/v1/jobs/{id}/events # Real-time progress (SSE)
 DELETE /api/v1/jobs/{id}    # Cancel job
+GET  /api/v1/batch/{id}     # Batch job status and progress
+DELETE /api/v1/batch/{id}   # Cancel entire batch
 ```
 
 ### System & Health
@@ -107,15 +110,27 @@ GET  /docs                  # Interactive API documentation
 - **VMAF** - Perceptual video quality measurement
 - **PSNR** - Peak Signal-to-Noise Ratio
 - **SSIM** - Structural Similarity Index
+
+> **📊 Need detailed media analysis?** Check out our companion [FFprobe API](https://github.com/rendiffdev/ffprobe-api) for comprehensive media file inspection, metadata extraction, and format analysis.
 - **Bitrate Analysis** - Compression efficiency metrics
 
 ### Enterprise Security
 
 - **API Key Authentication** with role-based permissions
-- **Rate Limiting** with configurable thresholds
-- **Input Validation** prevents command injection
+- **Advanced Rate Limiting** with Redis-backed distributed limiting
+- **Input Validation** prevents command injection and malicious uploads
+- **Media File Security** with comprehensive malware detection
 - **HTTPS/SSL** with automatic certificate management
 - **Security Headers** (HSTS, CSP, XSS protection)
+- **Security Audit Logging** tracks suspicious activity
+
+### Advanced Features
+
+- **Adaptive Streaming** - HLS/DASH with multiple quality variants
+- **Batch Processing** - Process up to 100 files simultaneously  
+- **Enhanced Thumbnails** - Multiple formats, grids, and quality options
+- **Professional Watermarking** - Advanced positioning and opacity controls
+- **Quality Analysis** - VMAF, PSNR, SSIM with reference comparison
 
 ### Production Monitoring
 

@@ -193,6 +193,8 @@ class FFmpegCommandBuilder:
                 video_filters.extend(self._handle_filters(params))
             elif op_type == 'stream_map':
                 cmd.extend(self._handle_stream_map(params))
+            elif op_type == 'streaming':
+                cmd.extend(self._handle_streaming(params))
         
         # Add video filters
         if video_filters:
@@ -269,7 +271,7 @@ class FFmpegCommandBuilder:
         if not isinstance(operations, list):
             raise FFmpegCommandError("Operations must be a list")
         
-        allowed_operation_types = {'transcode', 'trim', 'watermark', 'filter', 'stream_map'}
+        allowed_operation_types = {'transcode', 'trim', 'watermark', 'filter', 'stream_map', 'streaming'}
         
         for i, operation in enumerate(operations):
             if not isinstance(operation, dict):
@@ -296,6 +298,8 @@ class FFmpegCommandBuilder:
             self._validate_filter_params(params)
         elif op_type == 'watermark':
             self._validate_watermark_params(params)
+        elif op_type == 'streaming':
+            self._validate_streaming_params(params)
     
     def _validate_transcode_params(self, params: Dict[str, Any]):
         """Validate transcoding parameters."""
@@ -355,6 +359,39 @@ class FFmpegCommandBuilder:
             opacity = params['opacity']
             if not isinstance(opacity, (int, float)) or opacity < 0 or opacity > 1:
                 raise FFmpegCommandError(f"Invalid opacity: {opacity}")
+    
+    def _validate_streaming_params(self, params: Dict[str, Any]):
+        """Validate streaming parameters."""
+        # Validate streaming format
+        if 'format' in params:
+            allowed_formats = {'hls', 'dash'}
+            if params['format'] not in allowed_formats:
+                raise FFmpegCommandError(f"Invalid streaming format: {params['format']}")
+        
+        # Validate segment duration
+        if 'segment_time' in params:
+            segment_time = params['segment_time']
+            if not isinstance(segment_time, (int, float)) or segment_time < 1 or segment_time > 60:
+                raise FFmpegCommandError(f"Invalid segment time: {segment_time}")
+        
+        # Validate variants
+        if 'variants' in params:
+            if not isinstance(params['variants'], list):
+                raise FFmpegCommandError("Variants must be a list")
+            
+            for i, variant in enumerate(params['variants']):
+                if not isinstance(variant, dict):
+                    raise FFmpegCommandError(f"Variant {i} must be a dictionary")
+                
+                # Validate resolution
+                if 'resolution' in variant:
+                    resolution = variant['resolution']
+                    if not isinstance(resolution, str) or 'x' not in resolution:
+                        raise FFmpegCommandError(f"Invalid resolution format in variant {i}: {resolution}")
+                
+                # Validate bitrate
+                if 'bitrate' in variant:
+                    self._validate_bitrate(variant['bitrate'], f"variant_{i}_bitrate")
     
     def _validate_string_parameter(self, value: str, param_name: str):
         """Validate string parameters for command injection."""
@@ -530,6 +567,42 @@ class FFmpegCommandBuilder:
         if 'audio_stream' in params:
             cmd_parts.extend(['-map', f"0:a:{params['audio_stream']}"])
         
+        return cmd_parts
+    
+    def _handle_streaming(self, params: Dict[str, Any]) -> List[str]:
+        """Handle adaptive streaming (HLS/DASH) output."""
+        cmd_parts = []
+        
+        streaming_format = params.get('format', 'hls')
+        segment_time = params.get('segment_time', 6)
+        
+        if streaming_format == 'hls':
+            # HLS streaming configuration
+            cmd_parts.extend(['-f', 'hls'])
+            cmd_parts.extend(['-hls_time', str(segment_time)])
+            cmd_parts.extend(['-hls_playlist_type', 'vod'])
+            cmd_parts.extend(['-hls_segment_filename', 'segment_%03d.ts'])
+            
+            # Master playlist for multiple variants
+            if 'variants' in params:
+                cmd_parts.extend(['-master_pl_name', 'master.m3u8'])
+                
+                # Add variant streams
+                for i, variant in enumerate(params['variants']):
+                    if 'resolution' in variant and 'bitrate' in variant:
+                        resolution = variant['resolution']
+                        bitrate = variant['bitrate']
+                        
+                        # Add stream map for this variant
+                        cmd_parts.extend(['-var_stream_map', f'v:{i},a:{i}'])
+                        
+        elif streaming_format == 'dash':
+            # DASH streaming configuration
+            cmd_parts.extend(['-f', 'dash'])
+            cmd_parts.extend(['-seg_duration', str(segment_time)])
+            cmd_parts.extend(['-use_template', '1'])
+            cmd_parts.extend(['-use_timeline', '1'])
+            
         return cmd_parts
     
     def _handle_global_options(self, options: Dict[str, Any]) -> List[str]:
@@ -732,7 +805,7 @@ class FFmpegWrapper:
     
     def validate_operations(self, operations: List[Dict[str, Any]]) -> bool:
         """Validate operations before processing."""
-        valid_operations = {'transcode', 'trim', 'watermark', 'filter', 'stream_map'}
+        valid_operations = {'transcode', 'trim', 'watermark', 'filter', 'stream_map', 'streaming'}
         
         for operation in operations:
             if 'type' not in operation:

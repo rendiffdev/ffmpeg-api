@@ -15,7 +15,7 @@ from prometheus_client import make_asgi_app
 from api.config import settings
 from api.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
 from api.models.database import init_db
-from api.routers import admin, api_keys, convert, health, jobs
+from api.routers import admin, api_keys, batch, convert, health, jobs
 from api.services.queue import QueueService
 from api.services.storage import StorageService
 from api.utils.error_handlers import (
@@ -149,6 +149,7 @@ def _configure_routes(application: FastAPI) -> None:
     application.include_router(health.router, prefix="/api/v1", tags=["health"])
     application.include_router(convert.router, prefix="/api/v1", tags=["processing"])
     application.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
+    application.include_router(batch.router, prefix="/api/v1", tags=["batch"])
     
     # Management routes
     application.include_router(api_keys.router, prefix="/api/v1", tags=["authentication"])
