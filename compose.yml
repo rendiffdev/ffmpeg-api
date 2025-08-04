@@ -7,7 +7,7 @@ services:
   # Traefik Reverse Proxy
   traefik:
     image: traefik:v3.1
-    container_name: rendiff_traefik
+    container_name: ffmpeg_traefik
     command:
       - --configFile=/etc/traefik/traefik.yml
     ports:
@@ -34,7 +34,7 @@ services:
   # API Gateway (now behind Traefik)
   krakend:
     image: devopsfaith/krakend:2.7
-    container_name: rendiff_gateway
+    container_name: ffmpeg_gateway
     volumes:
       - ./config/krakend.json:/etc/krakend/krakend.json:ro
     # No port exposure - accessed through Traefik
@@ -53,7 +53,7 @@ services:
   # Database Service
   postgres:
     image: postgres:16-alpine
-    container_name: rendiff_postgres
+    container_name: ffmpeg_postgres
     environment:
       POSTGRES_DB: ffmpeg_api
       POSTGRES_USER: ffmpeg_user
@@ -93,7 +93,7 @@ services:
   # Queue Service (Redis)
   redis:
     image: redis:7.2-alpine
-    container_name: rendiff_redis
+    container_name: ffmpeg_redis
     command: >
       redis-server
       --appendonly yes
@@ -148,7 +148,7 @@ services:
       platforms:
         - linux/amd64
         - linux/arm64
-    container_name: rendiff_api
+    container_name: ffmpeg_api
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://ffmpeg_user:defaultpassword@postgres:5432/ffmpeg_api}
       REDIS_URL: redis://redis:6379/0

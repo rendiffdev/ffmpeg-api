@@ -6,14 +6,14 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
-echo "🚀 Rendiff FFmpeg API Setup"
-echo "=========================="
+echo "🚀 FFmpeg API Setup"
+echo "=================="
 
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [OPTION]"
     echo ""
-    echo "🚀 Rendiff FFmpeg API - Production-Ready Setup Script"
+    echo "🚀 FFmpeg API - Production-Ready Setup Script"
     echo ""
     echo "Deployment Options:"
     echo "  --development    🛠️  Fast local development (SQLite, debug mode, no auth)"
@@ -76,14 +76,14 @@ API_LOG_LEVEL=debug
 API_WORKERS=1
 
 # Database (SQLite for simplicity)
-DATABASE_URL=sqlite+aiosqlite:///data/rendiff.db
+DATABASE_URL=sqlite+aiosqlite:///data/ffmpeg_api.db
 
 # Queue (Redis)
 REDIS_URL=redis://redis:6379/0
 
 # Storage
 STORAGE_PATH=./storage
-TEMP_PATH=/tmp/rendiff
+TEMP_PATH=/tmp/ffmpeg_api
 
 # Security (Disabled for development)
 ENABLE_API_KEYS=false

@@ -25,10 +25,8 @@ cd ffmpeg-api
 # Choose your setup type
 ./setup.sh --help                    # Show all options
 ./setup.sh --development             # Quick dev setup
-./setup.sh --interactive             # Interactive setup wizard
 ./setup.sh --standard                # Standard production
 ./setup.sh --gpu                    # Hardware accelerated production
-./setup.sh --interactive             # Full configuration wizard
 ```
 
 ## Setup Options
@@ -85,12 +83,12 @@ cd ffmpeg-api
 **Best for: Internet-facing deployments with domain names**
 
 ```bash
-# Set your domain first
-export DOMAIN_NAME=api.yourdomain.com
-export CERTBOT_EMAIL=admin@yourdomain.com
+# Configure domain in .env file
+DOMAIN_NAME=api.yourdomain.com
+CERTBOT_EMAIL=admin@yourdomain.com
 
-./setup.sh --interactive
-# Choose HTTPS option during setup
+# Then run standard setup
+./setup.sh --standard
 ```
 
 **What you get:**
@@ -102,19 +100,14 @@ export CERTBOT_EMAIL=admin@yourdomain.com
 - SSL monitoring and alerts
 - Access at https://your-domain.com
 
-### ⚙️ Interactive Setup
-**Best for: Custom configurations, first-time setup**
+### ⚙️ Manual Configuration
+**Best for: Custom configurations, advanced setups**
 
-```bash
-./setup.sh --interactive
-```
-
-**What you get:**
-- Step-by-step configuration wizard
-- Custom storage backends (S3, Azure, GCP)
-- Custom SSL certificates
+Edit the `.env` file directly for custom configurations:
+- Storage backends (S3, Azure, GCP)
+- SSL certificates  
 - Advanced networking options
-- Database migration choices
+- Database settings
 
 ## Development Setup
 
