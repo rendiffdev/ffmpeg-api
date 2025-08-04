@@ -107,6 +107,10 @@ class Job(Base):
     webhook_url = Column(String, nullable=True)
     webhook_events = Column(JSON, default=["complete", "error"])
     
+    # Batch processing
+    batch_id = Column(String, nullable=True, index=True)
+    batch_index = Column(Integer, nullable=True)
+    
     # Indexes
     __table_args__ = (
         Index("idx_job_status_created", "status", "created_at"),
