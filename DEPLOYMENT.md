@@ -1,13 +1,6 @@
-# 🚀 Rendiff FFmpeg API - Production Deployment Guide
+# Production Deployment Guide
 
-**Version**: 1.0.0  
-**Status**: ✅ **PRODUCTION READY**  
-**Last Updated**: July 2025
-
-**Rendiff** - Professional FFmpeg API Service  
-🌐 [rendiff.dev](https://rendiff.dev) | 📧 [dev@rendiff.dev](mailto:dev@rendiff.dev) | 🐙 [GitHub](https://github.com/rendiffdev)
-
----
+Complete guide for deploying the FFmpeg API to production environments.
 
 ## 📊 Executive Summary
 
