@@ -1,6 +1,6 @@
-# Rendiff FFmpeg API - Setup Guide
+# Setup Guide
 
-Complete setup guide for the Rendiff FFmpeg API platform. This guide covers all deployment scenarios from development to production.
+Complete setup guide for the FFmpeg API platform covering all deployment scenarios from development to production.
 
 ## Table of Contents
 
