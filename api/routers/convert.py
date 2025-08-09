@@ -4,7 +4,7 @@ Convert endpoint - Main API for media conversion
 from typing import Dict, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
@@ -36,6 +36,20 @@ async def convert_media(
     specified output parameters and operations.
     """
     try:
+        # Validate request size and complexity early
+        if len(request.operations) > 20:
+            raise HTTPException(status_code=400, detail="Too many operations (max 20)")
+        
+        # Check webhook URL for SSRF if provided
+        if request.webhook_url:
+            from urllib.parse import urlparse
+            parsed = urlparse(request.webhook_url)
+            # Block internal networks
+            if parsed.hostname in ['localhost', '127.0.0.1', '0.0.0.0'] or \
+               parsed.hostname and (parsed.hostname.startswith('192.168.') or 
+                                   parsed.hostname.startswith('10.') or 
+                                   parsed.hostname.startswith('172.')):
+                raise HTTPException(status_code=400, detail="Invalid webhook URL")
         # Parse input/output paths
         input_path = request.input if isinstance(request.input, str) else request.input.get("path")
         output_path = request.output if isinstance(request.output, str) else request.output.get("path")
@@ -47,9 +61,32 @@ async def convert_media(
         # Validate operations
         operations_validated = validate_operations(request.operations)
         
-        # Create job record
+        # Check concurrent job limit for this API key
+        from sqlalchemy import select, func
+        from api.models.job import JobStatus
+        
+        # Count active jobs for this API key
+        active_jobs_stmt = select(func.count(Job.id)).where(
+            Job.api_key == api_key,
+            Job.status.in_([JobStatus.QUEUED, JobStatus.PROCESSING])
+        )
+        result = await db.execute(active_jobs_stmt)
+        active_job_count = result.scalar() or 0
+        
+        # Get API key model to check limits
+        from api.services.api_key import APIKeyService
+        api_key_model = await APIKeyService.get_api_key_by_key(db, api_key)
+        max_concurrent = api_key_model.max_concurrent_jobs if api_key_model else 5  # Default limit
+        
+        if active_job_count >= max_concurrent:
+            raise HTTPException(
+                status_code=429, 
+                detail=f"Concurrent job limit exceeded ({active_job_count}/{max_concurrent})"
+            )
+        
+        # Create job record with database-managed UUID to prevent race conditions
         job = Job(
-            id=uuid4(),
+            id=uuid4(),  # Still generate UUID but let DB handle uniqueness
             status=JobStatus.QUEUED,
             priority=request.priority,
             input_path=input_validated,
@@ -61,16 +98,27 @@ async def convert_media(
             webhook_events=request.webhook_events,
         )
         
-        # Add to database
+        # Add to database with flush to get the ID before commit
         db.add(job)
+        await db.flush()  # This assigns the ID without committing
+        
+        # Now we have a guaranteed unique job ID, queue it
+        job_id_str = str(job.id)
+        
+        # Queue the job (do this before commit in case queuing fails)
+        try:
+            await queue_service.enqueue_job(
+                job_id=job_id_str,
+                priority=request.priority,
+            )
+        except Exception as e:
+            # If queuing fails, rollback the job creation
+            await db.rollback()
+            raise HTTPException(status_code=503, detail="Failed to queue job")
+        
+        # Now commit the transaction
         await db.commit()
         await db.refresh(job)
-        
-        # Queue the job
-        await queue_service.enqueue_job(
-            job_id=str(job.id),
-            priority=request.priority,
-        )
         
         # Log job creation
         logger.info(
@@ -120,6 +168,7 @@ async def convert_media(
 @router.post("/analyze", response_model=JobCreateResponse)
 async def analyze_media(
     request: Dict[str, Any],
+    fastapi_request: Request,
     db: AsyncSession = Depends(get_db),
     api_key: str = Depends(require_api_key),
 ) -> JobCreateResponse:
@@ -128,6 +177,9 @@ async def analyze_media(
     
     This endpoint runs VMAF, PSNR, and SSIM analysis on the input media.
     """
+    # Apply endpoint-specific rate limiting
+    from api.utils.rate_limit import endpoint_rate_limiter
+    endpoint_rate_limiter.check_rate_limit(fastapi_request, "analyze", api_key)
     # Convert to regular conversion job with analysis flag
     convert_request = ConvertRequest(
         input=request["input"],

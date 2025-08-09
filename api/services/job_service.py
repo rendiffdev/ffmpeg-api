@@ -62,21 +62,22 @@ class JobService:
             progress_steps = [10, 25, 50, 75, 90]
             for step in progress_steps:
                 if job.progress >= step:
-                    # Estimate timestamp based on progress
+                    # Better timestamp calculation without assuming linear progress
                     if job.completed_at:
-                        # Job is complete, interpolate timestamps
+                        # Job is complete, use actual completion timeline
                         total_duration = (job.completed_at - job.started_at).total_seconds()
-                        step_duration = total_duration * (step / 100)
+                        # Use logarithmic scaling for more realistic progress estimation
+                        import math
+                        progress_factor = math.log(step + 1) / math.log(101)  # Avoid log(0)
+                        step_duration = total_duration * progress_factor
                         step_time = job.started_at + timedelta(seconds=step_duration)
                     else:
-                        # Job still running, use current time for latest progress
+                        # Job still running, use more conservative estimates
                         if step == max([s for s in progress_steps if job.progress >= s]):
                             step_time = datetime.utcnow()
                         else:
-                            # Estimate based on linear progress
-                            elapsed = (datetime.utcnow() - job.started_at).total_seconds()
-                            step_duration = elapsed * (step / job.progress) if job.progress > 0 else elapsed
-                            step_time = job.started_at + timedelta(seconds=step_duration)
+                            # Use current time for all past steps to avoid future timestamps
+                            step_time = datetime.utcnow()
                     
                     logs.append(f"[{step_time.isoformat()}] Progress: {step}% complete")
         
@@ -180,12 +181,23 @@ class JobService:
         total_result = await session.execute(count_stmt)
         total_jobs = total_result.scalar()
         
-        # Get status counts
-        status_stats = {}
-        for status in JobStatus:
-            status_stmt = count_stmt.where(Job.status == status)
-            status_result = await session.execute(status_stmt)
-            status_stats[status.value] = status_result.scalar()
+        # Get status counts efficiently with single query
+        from sqlalchemy import case
+        status_counts_stmt = select(
+            Job.status,
+            func.count(Job.id)
+        ).where(
+            Job.created_at >= start_date
+        ).group_by(Job.status)
+        
+        if api_key:
+            status_counts_stmt = status_counts_stmt.where(Job.api_key == api_key)
+        
+        status_results = await session.execute(status_counts_stmt)
+        status_stats = {status.value: 0 for status in JobStatus}  # Initialize all to 0
+        
+        for status, count in status_results:
+            status_stats[status.value] = count
         
         # Get average processing time for completed jobs
         completed_stmt = select(
