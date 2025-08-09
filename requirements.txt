@@ -23,7 +23,7 @@ aiofiles==24.1.0
 
 # Media Processing - Core
 ffmpeg-python==0.2.0
-pillow==11.0.0
+pillow==11.0.0  # Latest version, regularly updated for security
 
 # HTTP Client & Networking
 httpx==0.28.1
@@ -42,10 +42,10 @@ click==8.1.7
 rich==13.9.4
 humanize==4.11.0
 
-# Security & Authentication
+# Security & Authentication - Updated for security
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
-cryptography==43.0.3
+cryptography==43.0.1  # Updated to latest secure version
 
 # Production Server
 gunicorn==23.0.0

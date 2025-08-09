@@ -49,12 +49,22 @@ async def require_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Validate API key against database
+    # Validate API key against database with timing attack protection
+    import asyncio
     from api.services.api_key import APIKeyService
+    
+    # Always take the same amount of time regardless of key validity
+    start_time = asyncio.get_event_loop().time()
     
     api_key_model = await APIKeyService.validate_api_key(
         db, api_key, update_usage=True
     )
+    
+    # Ensure constant time execution (minimum 100ms)
+    elapsed = asyncio.get_event_loop().time() - start_time
+    min_time = 0.1  # 100ms
+    if elapsed < min_time:
+        await asyncio.sleep(min_time - elapsed)
     
     if not api_key_model:
         logger.warning(

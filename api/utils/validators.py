@@ -25,8 +25,8 @@ ALLOWED_IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".svg"
 }
 
-# Security patterns
-SAFE_FILENAME_REGEX = re.compile(r'^[a-zA-Z0-9\-_]+(\.[a-zA-Z0-9]+)?$')
+# Security patterns - updated to support Unicode while blocking dangerous chars
+SAFE_FILENAME_REGEX = re.compile(r'^[a-zA-Z0-9\-_\.\u00C0-\u017F\u0400-\u04FF\u4e00-\u9fff\u3040-\u309F\u30A0-\u30FF]+$', re.UNICODE)
 CODEC_REGEX = re.compile(r'^[a-zA-Z0-9\-_]+$')
 
 # Security configuration
@@ -70,23 +70,24 @@ def validate_secure_path(path: str, base_paths: set = None) -> str:
         raise SecurityError("Path length exceeds maximum allowed")
     
     try:
-        # Get canonical path to resolve any traversal attempts
-        canonical_path = os.path.realpath(path)
+        # First canonicalize the path to resolve symlinks and traversal attempts
+        canonical_path = os.path.realpath(os.path.abspath(path))
         
-        # Check if path is within allowed base paths
+        # AFTER canonicalization, check for traversal patterns in the result
+        if '..' in canonical_path:
+            raise SecurityError("Directory traversal detected in canonical path")
+        
+        # Check if canonical path is within allowed base paths
         is_allowed = False
         for base_path in base_paths:
-            base_canonical = os.path.realpath(base_path)
+            base_canonical = os.path.realpath(os.path.abspath(base_path))
+            # Ensure proper path comparison with trailing separator
             if canonical_path.startswith(base_canonical + os.sep) or canonical_path == base_canonical:
                 is_allowed = True
                 break
         
         if not is_allowed:
-            raise SecurityError(f"Path outside allowed directories: {path}")
-        
-        # Additional check for directory traversal patterns
-        if '..' in path or '~' in path:
-            raise SecurityError("Directory traversal attempt detected")
+            raise SecurityError(f"Path outside allowed directories: {canonical_path}")
         
         return canonical_path
         
@@ -129,10 +130,43 @@ async def validate_input_path(
     if file_ext not in (ALLOWED_VIDEO_EXTENSIONS | ALLOWED_AUDIO_EXTENSIONS):
         raise ValueError(f"Unsupported input file type: {file_ext}")
     
-    # Check if file exists
+    # Check if file exists and validate size - atomic check to prevent TOCTOU
     backend = storage_service.backends[backend_name]
-    if not await backend.exists(file_path):
-        raise ValueError(f"Input file not found: {path}")
+    try:
+        # Try to get file info instead of just exists() to make it atomic
+        if hasattr(backend, 'get_file_info'):
+            file_info = await backend.get_file_info(file_path)
+            if not file_info:
+                raise ValueError(f"Input file not found: {path}")
+            
+            # Validate file size (max 10GB for input files)
+            file_size = file_info.get('size', 0)
+            max_size = 10 * 1024 * 1024 * 1024  # 10GB
+            if file_size > max_size:
+                raise ValueError(f"Input file too large: {file_size} bytes (max {max_size})")
+                
+        else:
+            # Fallback to exists() if get_file_info not available
+            if not await backend.exists(file_path):
+                raise ValueError(f"Input file not found: {path}")
+            
+            # Try to get size if possible
+            if hasattr(backend, 'get_size'):
+                try:
+                    file_size = await backend.get_size(file_path)
+                    max_size = 10 * 1024 * 1024 * 1024  # 10GB
+                    if file_size > max_size:
+                        raise ValueError(f"Input file too large: {file_size} bytes (max {max_size})")
+                except Exception:
+                    # Size check failed, continue without it
+                    pass
+                    
+    except Exception as e:
+        if "too large" in str(e).lower():
+            raise ValueError(str(e))
+        elif "not found" in str(e).lower() or "does not exist" in str(e).lower():
+            raise ValueError(f"Input file not found: {path}")
+        raise ValueError(f"Error accessing input file: {e}")
     
     return backend_name, file_path
 
@@ -229,7 +263,50 @@ def validate_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]
         
         validated.append(validated_op)
     
+    # Validate codec-container compatibility
+    validate_codec_container_compatibility(validated)
+    
+    # Validate resource limits
+    validate_resource_limits(validated)
+    
     return validated
+
+def validate_codec_container_compatibility(operations: List[Dict[str, Any]]) -> None:
+    """Validate codec and container compatibility."""
+    # Define compatible combinations
+    CODEC_CONTAINER_COMPATIBILITY = {
+        'mp4': {'video': ['h264', 'h265', 'hevc', 'libx264', 'libx265'], 'audio': ['aac', 'mp3']},
+        'mkv': {'video': ['h264', 'h265', 'hevc', 'vp8', 'vp9', 'av1'], 'audio': ['aac', 'ac3', 'opus', 'flac']},
+        'webm': {'video': ['vp8', 'vp9'], 'audio': ['opus', 'vorbis']},
+        'avi': {'video': ['h264', 'libx264'], 'audio': ['mp3', 'ac3']},
+        'mov': {'video': ['h264', 'h265', 'libx264'], 'audio': ['aac']},
+    }
+    
+    for op in operations:
+        if op.get("type") == "transcode":
+            # Check for format specification
+            output_format = None
+            if "format" in op:
+                output_format = op["format"].lower()
+            
+            if output_format and output_format in CODEC_CONTAINER_COMPATIBILITY:
+                compat = CODEC_CONTAINER_COMPATIBILITY[output_format]
+                
+                # Check video codec compatibility
+                video_codec = op.get("video_codec")
+                if video_codec and video_codec not in compat['video']:
+                    raise ValueError(
+                        f"Video codec '{video_codec}' incompatible with container '{output_format}'. "
+                        f"Compatible codecs: {', '.join(compat['video'])}"
+                    )
+                
+                # Check audio codec compatibility
+                audio_codec = op.get("audio_codec")
+                if audio_codec and audio_codec not in compat['audio']:
+                    raise ValueError(
+                        f"Audio codec '{audio_codec}' incompatible with container '{output_format}'. "
+                        f"Compatible codecs: {', '.join(compat['audio'])}"
+                    )
 
 
 def validate_trim_operation(op: Dict[str, Any]) -> Dict[str, Any]:
@@ -415,13 +492,26 @@ def validate_bitrate(bitrate) -> str:
         if not re.match(r'^\d+[kKmM]?$', bitrate):
             raise ValueError(f"Invalid bitrate format: {bitrate}")
         
-        # Parse and validate range
-        if bitrate.lower().endswith('k'):
-            value = int(bitrate[:-1]) * 1000
-        elif bitrate.lower().endswith('m'):
-            value = int(bitrate[:-1]) * 1000000
-        else:
-            value = int(bitrate)
+        # Parse and validate range with overflow protection
+        try:
+            if bitrate.lower().endswith('k'):
+                base_value = int(bitrate[:-1])
+                if base_value > 2147483:  # Prevent overflow
+                    raise ValueError("Bitrate value too large")
+                value = base_value * 1000
+            elif bitrate.lower().endswith('m'):
+                base_value = int(bitrate[:-1])
+                if base_value > 2147:  # Prevent overflow
+                    raise ValueError("Bitrate value too large")
+                value = base_value * 1000000
+            else:
+                value = int(bitrate)
+                if value > 2147483647:  # Max int32
+                    raise ValueError("Bitrate value too large")
+        except ValueError as e:
+            if "too large" in str(e):
+                raise ValueError("Bitrate value causes overflow")
+            raise ValueError(f"Invalid bitrate format: {bitrate}")
         
         # Check reasonable limits (100 kbps to 50 Mbps)
         if value < 100000 or value > 50000000:
@@ -438,7 +528,7 @@ def validate_bitrate(bitrate) -> str:
 
 
 def validate_resolution(width, height) -> Dict[str, int]:
-    """Validate video resolution parameters."""
+    """Validate video resolution parameters with resource limits."""
     result = {}
     
     if width is not None:
@@ -461,7 +551,82 @@ def validate_resolution(width, height) -> Dict[str, int]:
             raise ValueError("Height must be even number")
         result["height"] = height
     
+    # Validate total pixel count for resource management
+    if "width" in result and "height" in result:
+        total_pixels = result["width"] * result["height"]
+        max_pixels = 7680 * 4320  # 8K max
+        if total_pixels > max_pixels:
+            raise ValueError(
+                f"Resolution {result['width']}x{result['height']} exceeds maximum pixel count "
+                f"({total_pixels} > {max_pixels})"
+            )
+        
+        # Warn about high-resource resolutions
+        if total_pixels > 3840 * 2160:  # 4K
+            import structlog
+            logger = structlog.get_logger()
+            logger.warning(
+                "High resolution requested - may require significant resources",
+                width=result["width"],
+                height=result["height"],
+                total_pixels=total_pixels
+            )
+    
     return result
+
+def validate_resource_limits(operations: List[Dict[str, Any]]) -> None:
+    """Validate resource consumption limits."""
+    for op in operations:
+        if op.get("type") == "transcode":
+            # Check bitrate limits
+            video_bitrate = op.get("video_bitrate")
+            if video_bitrate:
+                if isinstance(video_bitrate, str):
+                    # Parse string bitrates like "100M"
+                    if video_bitrate.lower().endswith('m'):
+                        bitrate_val = int(video_bitrate[:-1])
+                        if bitrate_val > 100:  # 100 Mbps max
+                            raise ValueError(f"Video bitrate too high: {video_bitrate} (max 100M)")
+                elif isinstance(video_bitrate, (int, float)):
+                    if video_bitrate > 100000000:  # 100 Mbps in bps
+                        raise ValueError(f"Video bitrate too high: {video_bitrate} bps (max 100M)")
+            
+            # Check framerate limits
+            fps = op.get("fps")
+            if fps and fps > 120:
+                raise ValueError(f"Frame rate too high: {fps} fps (max 120)")
+            
+            # Check quality settings
+            crf = op.get("crf")
+            if crf is not None and crf < 10:
+                raise ValueError(f"CRF too low (too high quality): {crf} (min 10 for resource management)")
+        
+        elif op.get("type") == "stream":
+            # Check streaming variants
+            variants = op.get("variants", [])
+            if len(variants) > 10:
+                raise ValueError(f"Too many streaming variants: {len(variants)} (max 10)")
+            
+            for i, variant in enumerate(variants):
+                if "bitrate" in variant:
+                    bitrate = variant["bitrate"]
+                    if isinstance(bitrate, str) and bitrate.lower().endswith('m'):
+                        bitrate_val = int(bitrate[:-1])
+                        if bitrate_val > 50:  # 50 Mbps max per variant
+                            raise ValueError(f"Variant {i} bitrate too high: {bitrate} (max 50M)")
+        
+        elif op.get("type") == "filter":
+            # Limit complex filters
+            filter_name = op.get("name", "")
+            complex_filters = ["denoise", "stabilize"]  # CPU intensive
+            if filter_name in complex_filters:
+                import structlog
+                logger = structlog.get_logger()
+                logger.warning(
+                    "CPU-intensive filter requested",
+                    filter=filter_name,
+                    operation_type=op.get("type")
+                )
 
 
 def parse_time_string(time_str: str) -> float:

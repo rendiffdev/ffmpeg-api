@@ -55,13 +55,12 @@ async def init_db() -> None:
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session."""
+    """Get database session with proper transaction isolation."""
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        async with session.begin():
+            try:
+                yield session
+                # Commit happens automatically when context exits successfully
+            except Exception:
+                # Rollback happens automatically on exception
+                raise

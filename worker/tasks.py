@@ -57,16 +57,43 @@ def update_job_status(job_id: str, updates: Dict[str, Any]) -> None:
         db.close()
 
 
-def send_webhook(webhook_url: str, event: str, data: Dict[str, Any]) -> None:
-    """Send webhook notification."""
+async def send_webhook(webhook_url: str, event: str, data: Dict[str, Any]) -> None:
+    """Send webhook notification with retry logic."""
     if not webhook_url:
         return
     
-    try:
-        # In production, use httpx or similar for async
-        logger.info(f"Webhook sent: {event} to {webhook_url}")
-    except Exception as e:
-        logger.error(f"Webhook failed: {e}")
+    import asyncio
+    import httpx
+    
+    max_retries = 3
+    base_delay = 1  # Start with 1 second
+    
+    for attempt in range(max_retries + 1):
+        try:
+            timeout = httpx.Timeout(30.0)  # 30 second timeout
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    webhook_url,
+                    json=data,
+                    headers={"Content-Type": "application/json", "User-Agent": "Rendiff-FFmpeg-API/1.0"}
+                )
+                
+                if response.status_code < 300:
+                    logger.info(f"Webhook sent successfully: {event} to {webhook_url}")
+                    return
+                else:
+                    logger.warning(f"Webhook returned {response.status_code}: {event} to {webhook_url}")
+                    
+        except Exception as e:
+            logger.warning(f"Webhook attempt {attempt + 1} failed: {e}")
+            
+            if attempt < max_retries:
+                # Exponential backoff: 1s, 2s, 4s
+                delay = base_delay * (2 ** attempt)
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"Webhook permanently failed after {max_retries + 1} attempts: {webhook_url}")
+                break
 
 
 def process_job(job_id: str) -> Dict[str, Any]:
@@ -107,13 +134,14 @@ def process_job(job_id: str) -> Dict[str, Any]:
         
         db.commit()
         
-        # Send webhook
-        send_webhook(job.webhook_url, "complete", {
-            "job_id": str(job.id),
-            "status": "completed",
-            "output_path": job.output_path,
-            "metrics": result.get("metrics", {}),
-        })
+        # Send webhook (async)
+        if job.webhook_url:
+            asyncio.run(send_webhook(job.webhook_url, "complete", {
+                "job_id": str(job.id),
+                "status": "completed",
+                "output_path": job.output_path,
+                "metrics": result.get("metrics", {}),
+            }))
         
         logger.info(f"Job completed: {job_id}")
         return result
@@ -128,11 +156,21 @@ def process_job(job_id: str) -> Dict[str, Any]:
             job.completed_at = datetime.utcnow()
             db.commit()
             
-            # Send webhook
+            # Send webhook with sanitized error
+            error_msg = "Processing failed"
+            if "not found" in str(e).lower():
+                error_msg = "Input file not found"
+            elif "permission" in str(e).lower():
+                error_msg = "Permission denied"
+            elif "timeout" in str(e).lower():
+                error_msg = "Processing timeout"
+            else:
+                error_msg = "Processing failed"
+            
             send_webhook(job.webhook_url, "error", {
                 "job_id": str(job.id),
                 "status": "failed",
-                "error": str(e),
+                "error": error_msg,  # Sanitized error
             })
         
         raise
@@ -142,8 +180,11 @@ def process_job(job_id: str) -> Dict[str, Any]:
 
 async def process_job_async(job: Job, progress: ProgressTracker) -> Dict[str, Any]:
     """
-    Async job processing logic.
+    Async job processing logic with proper cleanup.
     """
+    import contextlib
+    import shutil
+    
     # Load storage configuration
     with open(settings.STORAGE_CONFIG, 'r') as f:
         import yaml
@@ -161,8 +202,10 @@ async def process_job_async(job: Job, progress: ProgressTracker) -> Dict[str, An
         storage_config["backends"][output_backend_name]
     )
     
-    # Create temporary directory for processing
-    with tempfile.TemporaryDirectory(prefix="rendiff_") as temp_dir:
+    # Create temporary directory with guaranteed cleanup
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix="rendiff_")
         temp_path = Path(temp_dir)
         
         # Download input file
@@ -170,10 +213,12 @@ async def process_job_async(job: Job, progress: ProgressTracker) -> Dict[str, An
         local_input = temp_path / "input" / Path(input_path).name
         local_input.parent.mkdir(parents=True, exist_ok=True)
         
+        # Use aiofiles for non-blocking file I/O
+        import aiofiles
         async with await input_backend.read(input_path) as stream:
-            with open(local_input, 'wb') as f:
+            async with aiofiles.open(local_input, 'wb') as f:
                 async for chunk in stream:
-                    f.write(chunk)
+                    await f.write(chunk)
         
         # Probe input file using internal wrapper
         await progress.update(10, "analyzing", "Analyzing input file")
@@ -196,10 +241,11 @@ async def process_job_async(job: Job, progress: ProgressTracker) -> Dict[str, An
         )
         metrics = result.get('metrics', {})
         
-        # Upload output file
+        # Upload output file using async I/O
         await progress.update(90, "uploading", "Uploading output file")
-        with open(local_output, 'rb') as f:
-            await output_backend.write(output_path, f)
+        async with aiofiles.open(local_output, 'rb') as f:
+            content = await f.read()
+            await output_backend.write(output_path, content)
         
         # Complete
         await progress.update(100, "complete", "Processing complete")
@@ -210,6 +256,13 @@ async def process_job_async(job: Job, progress: ProgressTracker) -> Dict[str, An
             "vmaf_score": metrics.get("vmaf"),
             "psnr_score": metrics.get("psnr"),
         }
+    finally:
+        # Ensure temp directory is cleaned up
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
 
 
 def analyze_media(job_id: str) -> Dict[str, Any]:
@@ -303,11 +356,21 @@ def create_streaming(job_id: str) -> Dict[str, Any]:
             job.completed_at = datetime.utcnow()
             db.commit()
             
-            # Send webhook
+            # Send webhook with sanitized error
+            error_msg = "Processing failed"
+            if "not found" in str(e).lower():
+                error_msg = "Input file not found"
+            elif "permission" in str(e).lower():
+                error_msg = "Permission denied"
+            elif "timeout" in str(e).lower():
+                error_msg = "Processing timeout"
+            else:
+                error_msg = "Processing failed"
+            
             send_webhook(job.webhook_url, "error", {
                 "job_id": str(job.id),
                 "status": "failed",
-                "error": str(e),
+                "error": error_msg,  # Sanitized error
             })
         
         raise
@@ -347,10 +410,12 @@ async def process_streaming_async(job: Job, progress: ProgressTracker) -> Dict[s
         local_input = temp_path / "input" / Path(input_path).name
         local_input.parent.mkdir(parents=True, exist_ok=True)
         
+        # Use aiofiles for non-blocking file I/O
+        import aiofiles
         async with await input_backend.read(input_path) as stream:
-            with open(local_input, 'wb') as f:
+            async with aiofiles.open(local_input, 'wb') as f:
                 async for chunk in stream:
-                    f.write(chunk)
+                    await f.write(chunk)
         
         # Create streaming output directory
         await progress.update(10, "preparing", "Preparing streaming output")

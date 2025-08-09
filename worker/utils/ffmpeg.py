@@ -613,16 +613,35 @@ class FFmpegCommandBuilder:
         if 'format' in options:
             cmd_parts.extend(['-f', options['format']])
         
-        # Metadata
+        # Metadata with proper escaping
         if 'metadata' in options:
             for key, value in options['metadata'].items():
-                cmd_parts.extend(['-metadata', f"{key}={value}"])
+                # Validate and escape metadata key and value
+                safe_key = self._escape_metadata_field(key)
+                safe_value = self._escape_metadata_field(str(value))
+                cmd_parts.extend(['-metadata', f"{safe_key}={safe_value}"])
         
         # Threading
         if 'threads' in options:
             cmd_parts.extend(['-threads', str(options['threads'])])
         
         return cmd_parts
+    
+    def _escape_metadata_field(self, field: str) -> str:
+        """Escape metadata field for FFmpeg command safety."""
+        if not isinstance(field, str):
+            field = str(field)
+        
+        # Remove or escape dangerous characters
+        dangerous_chars = ['|', ';', '&', '$', '`', '<', '>', '"', "'", '\\', '\n', '\r', '\t']
+        for char in dangerous_chars:
+            field = field.replace(char, '_')
+        
+        # Limit length
+        if len(field) > 255:
+            field = field[:255]
+        
+        return field
 
 
 class FFmpegProgressParser:
@@ -663,9 +682,12 @@ class FFmpegProgressParser:
             total_seconds = hours * 3600 + minutes * 60 + seconds + centiseconds / 100
             progress['time'] = total_seconds
             
-            # Calculate percentage if total duration is known
+            # Calculate percentage if total duration is known and valid
             if self.total_duration and self.total_duration > 0:
                 progress['percentage'] = min(100.0, (total_seconds / self.total_duration) * 100)
+            elif self.total_duration == 0:
+                # Handle zero-duration edge case
+                progress['percentage'] = 100.0 if total_seconds > 0 else 0.0
         
         # Extract bitrate
         bitrate_match = self.bitrate_pattern.search(line)

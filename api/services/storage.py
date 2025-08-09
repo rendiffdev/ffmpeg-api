@@ -75,21 +75,52 @@ class StorageService:
     
     def parse_uri(self, uri: str) -> Tuple[str, str]:
         """
-        Parse storage URI into backend name and path.
+        Parse storage URI into backend name and path with proper path handling.
         
         Examples:
         - /path/to/file -> ("local", "/path/to/file")
         - s3://bucket/path -> ("s3", "bucket/path")
         - nfs://server/path -> ("nfs", "server/path")
+        - local:///path/to/file -> ("local", "/path/to/file")
         """
         if "://" in uri:
             parts = uri.split("://", 1)
-            backend_name = parts[0]
-            path = parts[1]
+            backend_name = parts[0].lower()
+            raw_path = parts[1]
+            
+            # Normalize path separators based on backend type
+            if backend_name == "local":
+                # For local backend, ensure proper OS path separators
+                import os
+                if raw_path.startswith('/'):
+                    path = raw_path  # Unix-style absolute path
+                else:
+                    path = os.path.normpath(raw_path)
+            elif backend_name in ["s3", "azure", "gcs"]:
+                # Cloud storage uses forward slashes
+                path = raw_path.replace('\\', '/')
+                # Remove leading slash for cloud storage
+                if path.startswith('/'):
+                    path = path[1:]
+            elif backend_name in ["nfs", "smb", "cifs"]:
+                # Network storage paths
+                path = raw_path.replace('\\', '/')
+            else:
+                # Default: forward slashes
+                path = raw_path.replace('\\', '/')
         else:
-            # Default to local backend for absolute paths
+            # Default to local backend for paths without scheme
             backend_name = self.default_backend
-            path = uri
+            import os
+            path = os.path.normpath(uri)
+        
+        # Validate backend exists
+        if backend_name not in self.backends:
+            available = list(self.backends.keys())
+            raise ValueError(
+                f"Unknown storage backend '{backend_name}'. "
+                f"Available backends: {', '.join(available)}"
+            )
         
         return backend_name, path
     

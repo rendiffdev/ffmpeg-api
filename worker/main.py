@@ -38,7 +38,7 @@ app.conf.update(
     worker_prefetch_multiplier=settings.WORKER_PREFETCH_MULTIPLIER,
     worker_max_tasks_per_child=settings.WORKER_MAX_TASKS_PER_CHILD,
     task_acks_late=True,
-    task_reject_on_worker_lost=True,
+    task_reject_on_worker_lost=False,  # Avoid conflicts with acks_late
     task_routes={
         "worker.process_job": {"queue": "default"},
         "worker.analyze_media": {"queue": "analysis"},
